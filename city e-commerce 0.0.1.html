@@ -9801,22 +9801,170 @@
     reactor.addEventListener("startUpErrorLog", log => console.showMessage(log))
 
     function onLoadStartUp() {
-
-        //addStartUpFunction('Sample', Promised Function)
-        //setAppObjectStores({sampleObs1:{}, sampleObs2:{options{autoIncrement:true, keyPath:'SampleKey'}, Indexes:{sampleIndex:{}}}})
-        //showLoader();
         showMessage("Starting the app! Please Wait!")
         floDapps.launchStartUp().then(result => {
             console.log(result)
             showMessage(result)
             showMessage(`Welcome ${myFloID}`)
-            buidAdminUI();
-            cloudArticleApp.retrieveLatestContent();
         }).catch(error => console.error(error))
     }
 </script>
 <script>
-    const ecommerce = {}
+    function extend(Child, Parent) {
+        var Temp = function() {};
+        Temp.prototype = Parent.prototype;
+        Child.prototype = new Temp();
+        Child.prototype.constructor = Child;
+    }
+    const ecommerce = {
+        product_categories: ['Electronics', 'Clothes & Accessories', 'Home Appliances'],
+        sellers_list: [
+            {
+                seller_id: 'FGtPEBu2NFFYkqFrA9NDBJJLpVhyuPubDj',
+                category: 'Electronics',
+                approved_by: 'F72fAV6aG8JrzR3N9F43vBE59q1FqWhBAp',
+                certificate: '3046022100b2478a07e2fb5f0d315e3bd59c2e1b6bbba424a1e40099d32af057fc813b04d502210080289da78d0e319a1e9efc28b9bb61ace98d4d57e655c9c790d430baa890f293'
+            },
+            {
+                seller_id: 'FGtPEBu2NFFYkqFrA9NDBJJLpVhyuPubDj',
+                category: 'Clothes & Accessories',
+                approved_by: 'F72fAV6aG8JrzR3N9F43vBE59q1FqWhBAp',
+                certificate: '304402206c382d922419763533a023cd578062d0feb5cd5ccafef110e73ef71b7219aefe02202169aba0de969b98a5e9f995a6fd1035c3b12466d1c0dcc2fd3628d1043437e7'
+            },
+            {
+                seller_id: 'FGtPEBu2NFFYkqFrA9NDBJJLpVhyuPubDj',
+                category: 'Home Appliances',
+                approved_by: 'F72fAV6aG8JrzR3N9F43vBE59q1FqWhBAp',
+                certificate: '3045022100955c6c45cb06a6c58f818b99f0191ea054c9e21840aa6f6a13dec35780b6b5ac022032b0e3c9ed451d440e7b009a862a3805346d1fa82c7f8d060e1d6b263cec2ccc'
+            },
+            {
+                seller_id: 'FM1NzncALbWCcBVF5zbgzSmUbwQgW7tUfv',
+                category: 'Clothes & Accessories',
+                approved_by: 'F72fAV6aG8JrzR3N9F43vBE59q1FqWhBAp',
+                certificate: '304402200bc20546978989d910388c26ec48c730287eba65c60e83a56ef4ca78bdf39f7202203e95040ce9ebcaeefdf019b3d9396f2acaed4740cfbdce33120b5139a2ba9023'
+            },
+        ],
+        cashiers_list: [
+            {
+                cashier_flo_id: 'FByrY4vc1NRfbkqAqABtUyhhNzMZsKUjqr',
+                upi_id: 'john_doe@upi',
+                approved_by: 'F72fAV6aG8JrzR3N9F43vBE59q1FqWhBAp',
+                certificate: '3045022100ace8fd3635600a06045807401a67f6657e2750c7ddef486986dc942e29a781870220338f29ab91ff0692868224186c02b7b2ad4fc372d27bd5d7dff16d44a643b620'
+            },
+            {
+                cashier_flo_id: 'FHU7dfBVDLZwp3fLRJ5cr7nEABBeeU9Z4T',
+                upi_id: 'jane_doe@upi',
+                approved_by: 'F72fAV6aG8JrzR3N9F43vBE59q1FqWhBAp',
+                certificate: '304402202aad9d2200e65ef141bd6694827f616dfa16f2f055c4999ace783766cd57fb300220487ec999ab2683b7d604e8c30de2dfea622d28ad781cbc06de20ead3f487a81a'
+            },
+        ],
+        couriers_list: [
+            {
+                courier_guy_flo_id: 'FToFgkZHhLfkQqLQUsjBZxKVWyrEMsC4hf',
+                location: 'Ranchi',
+                approved_by: 'F72fAV6aG8JrzR3N9F43vBE59q1FqWhBAp',
+                certificate: '30450221008c65a37120d3be0a36e9a8aef737646f8477dc8f0070ee872b870563277e0f2a02203215dc61dce5386d9d8d543f13f3973fde8d097890f907cbba60dd548ca9853b'
+            },
+            {
+                courier_guy_flo_id: 'FPMpZJY1ca9pru3mT8KUCHCaauBe8UNQ3a',
+                location: 'Ranchi',
+                approved_by: 'F72fAV6aG8JrzR3N9F43vBE59q1FqWhBAp',
+                certificate: '3045022045653951beaa1d2d52742592f1ebe4c4ba79ef3bb452a13d2b28b56494358a8702210083c30538b4d498f2226d23b796928d00ba7dd51e91f581db9868d28a80af4721'
+            }
+        ],
+        blocked_flo_ids: [],
+        current_user: function User(user_details='') {
+            
+            if(typeof User.instance === 'object') return User.instance;
+                  
+            if(ecommerce.sellers_list.map(m=>m.seller_id)
+            .includes(user_details.flo_id)) {
+                User.prototype.user_info = new ecommerce.user_types.sellers(user_details);
+            } else if(ecommerce.cashiers_list.map(m=>m.cashier_flo_id)
+            .includes(user_details.flo_id)) {
+                User.prototype.user_info = new ecommerce.user_types.cashiers(user_details);
+            } else if(ecommerce.couriers_list.map(m=>m.courier_guy_flo_id)
+            .includes(user_details.flo_id)) {
+                User.prototype.user_info = new ecommerce.user_types.couriers(user_details);
+            } else {
+                User.prototype.user_info = new ecommerce.user_types.buyers(user_details);
+            }
+             
+            User.instance = this;
+            return this;
+        },
+
+        user_types: {
+            buyers: function Buyer(buyer_details={}) {
+                this.buyer_id = buyer_details.flo_id;
+                this.user_role = "BUYER";
+            },
+            sellers: function Seller(seller_details={}) {
+                this.seller_id = seller_details.flo_id;
+                this.user_role = "SELLER";
+                this.approved_by = seller_details.approved_by;
+                this.certificate = seller_details.certificate;
+            },
+            cashiers: function Cashier(cashier_details={}) {
+                this.cashier_flo_id = cashier_details.flo_id;
+                this.upi_id = cashier_details.upi_id;
+                this.user_role = "CASHIER";
+                this.approved_by = cashier_details.approved_by;
+                this.certificate = cashier_details.certificate;
+            },
+            couriers: function Courier(courier_details={}) {
+                this.courier_guy_flo_id = courier_details.flo_id;
+                this.location = courier_details.location;
+                this.user_role = "COURIER";
+                this.approved_by = courier_details.approved_by;
+                this.certificate = courier_details.certificate;
+            },
+        },
+
+        features_categories: {
+
+        }
+
+    }
+</script>
+
+<!-- Product functions -->
+<script>
+    ecommerce.products = {
+        physical_products: function(data) {
+            for (const key in data) {
+                if (data.hasOwnProperty(key)) {
+                    const obj = data[key];
+                    this[key] = obj;
+                }
+            }
+            this.product_type = "PHYSICAL";
+        },    
+        digital_products: function() {
+            for (const key in data) {
+                if (data.hasOwnProperty(key)) {
+                    const obj = data[key];
+                    this[key] = obj;
+                }
+            }
+            this.product_type = "DIGITAL";
+        },
+    }
+</script>
+
+<!-- Seller functions -->
+<script>
+    ecommerce.user_types.sellers.prototype = {
+        list_new_product: function(product_details) {
+            let productClass = null;
+            if(product_details.product_type==="PHYSICAL") {
+                productClass = "physical_products";
+            } else if(product_details.product_type==="DIGITAL") {
+                productClass = "digital_products";
+            } else return false;
+            return new ecommerce.products[productClass](product_details);
+        }
+    }
 </script>
 
 </html>
