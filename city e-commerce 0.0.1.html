@@ -9560,7 +9560,46 @@
                         appObjects: {},
                         vectorClock: {},
                         generalData: {},
-                        generalVC: {}
+                        generalVC: {},
+                        /* ecommerce app */
+                        // general purposes datastores
+                        myInfo: {
+                            indexes: {pubKey: null}
+                        },
+                        live_orders: {
+                            indexes: { 
+                                orderId: null, 
+                                productCategory: null, 
+                                dateOfOrder: null,
+                                status: null,
+                            }
+                        },
+                        my_orders_history: {
+                            indexes: { 
+                                orderId: null, 
+                                productCategory: null, 
+                                dateOfOrder: null,
+                                status: null,
+                            }
+                        },
+
+                        // for Seller view
+                        sellerProducts: {
+                            indexes: { 
+                                productFloId: null,  
+                                productCategory: null,
+                                productType: null,
+                                status: null,
+                            }
+                        },
+
+                        // for Buyer view
+                        my_search_history: {
+                            indexes: {
+                                productCategory: null,
+                            }  
+                        }
+
                     }
                     //add other given objectStores
                     for (o in this.appObs)
@@ -9798,7 +9837,7 @@
 
     reactor.registerEvent("startUpErrorLog");
     reactor.addEventListener("startUpErrorLog", log => console.error(log))
-    reactor.addEventListener("startUpErrorLog", log => console.showMessage(log))
+    reactor.addEventListener("startUpErrorLog", log => showMessage(log))
 
     function onLoadStartUp() {
         showMessage("Starting the app! Please Wait!")
@@ -9809,14 +9848,30 @@
         }).catch(error => console.error(error))
     }
 </script>
+
 <script>
+
     function extend(Child, Parent) {
         var Temp = function() {};
         Temp.prototype = Parent.prototype;
         Child.prototype = new Temp();
         Child.prototype.constructor = Child;
     }
+
+    function to_fiat_number(num) {
+        try {
+            return Number(parseFloat(num).toFixed(2));
+        } catch (error) {
+            throw new Error('Not a Number');
+        }
+    }
+</script>
+
+<script>
+
     const ecommerce = {
+        SUBJECT: 'TEST_ECOMMERCE',
+        DATA_TYPE: 'EC1',
         product_categories: ['Electronics', 'Clothes & Accessories', 'Home Appliances'],
         sellers_list: [
             {
@@ -9898,6 +9953,8 @@
             buyers: function Buyer(buyer_details={}) {
                 this.buyer_id = buyer_details.flo_id;
                 this.user_role = "BUYER";
+                this.buy_list = [];
+                this.total_buying_price = 0;
             },
             sellers: function Seller(seller_details={}) {
                 this.seller_id = seller_details.flo_id;
@@ -9921,6 +9978,27 @@
             },
         },
 
+        products: {
+            physical_products: function(data) {
+                for (const key in data) {
+                    if (data.hasOwnProperty(key)) {
+                        const obj = data[key];
+                        this[key] = obj;
+                    }
+                }
+                this.product_type = "PHYSICAL";
+            },    
+            digital_products: function() {
+                for (const key in data) {
+                    if (data.hasOwnProperty(key)) {
+                        const obj = data[key];
+                        this[key] = obj;
+                    }
+                }
+                this.product_type = "DIGITAL";
+            },
+        },
+
         features_categories: {
 
         }
@@ -9930,39 +10008,117 @@
 
 <!-- Product functions -->
 <script>
-    ecommerce.products = {
-        physical_products: function(data) {
-            for (const key in data) {
-                if (data.hasOwnProperty(key)) {
-                    const obj = data[key];
-                    this[key] = obj;
-                }
-            }
-            this.product_type = "PHYSICAL";
-        },    
-        digital_products: function() {
-            for (const key in data) {
-                if (data.hasOwnProperty(key)) {
-                    const obj = data[key];
-                    this[key] = obj;
-                }
-            }
-            this.product_type = "DIGITAL";
-        },
-    }
+    ecommerce.products 
 </script>
 
 <!-- Seller functions -->
 <script>
     ecommerce.user_types.sellers.prototype = {
-        list_new_product: function(product_details) {
+        add_new_product: function(product_details) {
             let productClass = null;
             if(product_details.product_type==="PHYSICAL") {
                 productClass = "physical_products";
             } else if(product_details.product_type==="DIGITAL") {
                 productClass = "digital_products";
             } else return false;
-            return new ecommerce.products[productClass](product_details);
+            // Generate a product object
+            const nayaProduct = new ecommerce.products[productClass](product_details);
+            nayaProduct.seller_flo_id = myFloID;
+            nayaProduct.datetime = + new Date();
+            nayaProduct.onSale = false;
+            compactIDB.addData('sellerProducts', nayaProduct);
+            return nayaProduct;
+        }, 
+        update_product_status: function(old_product_details, new_product_details) {
+            const object_values = Object.keys(obj1);
+            for(i in product_details) {
+                if(object_values.includes(i)) {
+                    obj1[i] = product_details[i];
+                }
+            }
+            this.list_product_for_sale();    
+        },
+        list_product_for_sale: async function() {
+            const myProducts = await compactIDB.readAllData('sellerProducts');
+            const mySellingProducts = myProducts.filter(f=>(f.onSale===True && f.items_available>0));
+            console.table(mySellingProducts);
+        }
+    }
+</script>
+
+<!-- Buyer functions -->
+<script>
+    ecommerce.user_types.buyers.prototype = {
+        add_item_to_bucket: function(item) {
+            const current_list = Object.values(this.buy_list)
+                                .map(m=>m.product_name);
+            if(current_list.includes(item.product_name)) {
+                for (i = 0; i < this.buy_list.length; i++) {
+                    if (this.buy_list[i].product_name === item.product_name) {
+                        this.buy_list[i].buying_units += item.buying_units;
+                        this.total_buying_price += 
+                            to_fiat_number(
+                                to_fiat_number(item.selling_price)
+                                * 
+                                to_fiat_number(this.buy_list[i].buying_units)
+                            );
+                        return this.buy_list;
+                    }
+                }
+            } else {
+                this.buy_list.push(item);
+                this.total_buying_price += 
+                    to_fiat_number(
+                        to_fiat_number(item.selling_price)
+                        * 
+                        to_fiat_number(item.buying_units)
+                    );
+            }
+        },
+        remove_item_from_bucket: function(item) {
+            for (i = 0; i < this.buy_list.length; i++) {
+                if (this.buy_list[i] === item) {
+                    if(this.buy_list[i].buying_units<=item.units) {
+                        this.buy_list.splice(i, 1);
+                        return this.buy_list;
+                    } else if(this.buy_list[i].buying_units>item.units) {
+                        this.buy_list[i].buying_units -= item.buying_units;
+                    }
+                    this.total_buying_price -= to_fiat_number(
+                        to_fiat_number(item.selling_price)
+                        * 
+                        to_fiat_number(this.buy_list[i].buying_units)
+                    );
+                }
+            }
+        },
+        buy_item: async function(item) {
+            // Check if Seller is live or not
+            
+            // If Seller is live place a Buy order
+            const final_buy_list = {
+                buyer_id: myFloID,
+                shopping_details: this.buy_list,
+                total_shopping_price: this.total_buying_price,
+                date_of_purchase: + new Date(),
+                location: null,
+            }
+            const purchaseId = Crypto.SHA256(JSON.stringify(final_buy_list));
+            final_buy_list.purchaseId = purchaseId;
+            final_buy_list.buyer_signature = floCrypto.signData(JSON.stringify(final_buy_list), myPrivKey);
+            
+            // Send buy info to server
+            floCloudAPI.sendGeneralData(general_data_obj, this.DATA_TYPE, { receiverID: floGlobals.adminID, senderIDs: [myFloID] });
+
+            // Store info in local history
+            compactIDB.addData('my_orders_history', final_buy_list);
+
+            this.reset_bucket_list();
+
+        },
+        reset_bucket_list: function() {
+            this.total_buying_price = 0;
+            this.buy_list = [];
         }
     }
 </script>
