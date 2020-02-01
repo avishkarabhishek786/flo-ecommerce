@@ -4,7 +4,6 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta http-equiv="X-UA-Compatible" content="ie=edge">
-    <link rel="stylesheet" href="css/main.css">
     <link href="https://fonts.googleapis.com/css?family=Merriweather:700|Roboto:300,400,500,700&display=swap" rel="stylesheet">
     <title>City e-commerce</title>
     <style>* {
@@ -1127,6 +1126,7 @@
     }
 
 </script>
+
 <script id="init_lib">
     //All util libraries required for Standard operations (DO NOT EDIT ANY)
 
@@ -8104,6 +8104,7 @@
         }
     })();
 </script>
+
 <script id="floCrypto">
     /* FLO Crypto Operators*/
     const floCrypto = {
@@ -8575,633 +8576,641 @@
 <script id="floSupernode">
     /* flo Supernode Operators to send/receive data from supernodes using websocket */
     const floSupernode = {
-
-        //kBucket object 
-        kBucket: {
-            supernodeKBucket: null,
-            decodeBase58Address: function (address) {
-                let k = bitjs.Base58.decode(address)
-                k.shift()
-                k.splice(-4, 4)
-                return Crypto.util.bytesToHex(k)
-            },
-            floIdToKbucketId: function (address) {
-                const decodedId = this.decodeBase58Address(address);
-                const nodeIdBigInt = new BigInteger(decodedId, 16);
-                const nodeIdBytes = nodeIdBigInt.toByteArrayUnsigned();
-                const nodeIdNewInt8Array = new Uint8Array(nodeIdBytes);
-                return nodeIdNewInt8Array;
-            },
-            launch: function (superNodeList = Object.keys(floGlobals.supernodes), master_floID = floGlobals.adminID) {
-                return new Promise((resolve, reject) => {
-                    try {
-                        const SuKBucketId = this.floIdToKbucketId(master_floID);
-                        const SukbOptions = {
-                            localNodeId: SuKBucketId
-                        }
-                        this.supernodeKBucket = new BuildKBucket(SukbOptions);
-                        for (var i = 0; i < superNodeList.length; i++) {
-                            this.addNewNode(superNodeList[i])
-                        }
-                        resolve('SuperNode KBucket formed');
-                    } catch (error) {
-                        reject(error);
-                    }
-                });
-            },
-            addContact: function (id, floID, KB = this.supernodeKBucket) {
-                const contact = {
-                    id: id,
-                    floID: floID
-                };
-                KB.add(contact)
-            },
-            addNewNode: function (address, KB = this.supernodeKBucket) {
-                let decodedId = address;
-                try {
-                    decodedId = this.floIdToKbucketId(address);
-                } catch (e) {
-                    decodedId = address;
-                }
-                this.addContact(decodedId, address, KB);
-            },
-            isNodePresent: function (flo_id, KB = this.supernodeKBucket) {
-                let kArray = KB.toArray();
-                let kArrayFloIds = kArray.map(k => k.floID);
-                if (kArrayFloIds.includes(flo_id))
-                    return true;
-                else
-                    return false;
-            },
-
-            getInnerNodes: function (flo_addr1, flo_addr2, KB = this.supernodeKBucket) {
-                return new Promise((resolve, reject) => {
-                    let kArrayFloIds = KB.toArray().map(k => k.floID);
-                    var innerNodes = []
-                    if (kArrayFloIds.includes(flo_addr1) && kArrayFloIds.includes(flo_addr2)) {
-                        for (var i = kArrayFloIds.indexOf(flo_addr1); i != flo_addr2; i++) {
-                            if (i >= kArrayFloIds.length)
-                                i = -1
-                            else
-                                innerNodes.push(kArrayFloIds[i])
-                        }
-                        resolve(innerNodes)
-                    } else
-                        reject('Given nodes are not in KBucket')
-                });
-            },
-
-            getOuterNodes: function (flo_addr1, flo_addr2, KB = this.supernodeKBucket) {
-                return new Promise((resolve, reject) => {
-                    let kArrayFloIds = KB.toArray().map(k => k.floID);
-                    var outterNodes = []
-                    if (kArrayFloIds.includes(flo_addr1) && kArrayFloIds.includes(flo_addr2)) {
-                        for (var i = kArrayFloIds.indexOf(flo_addr2); i != flo_addr1; i++) {
-                            if (i >= kArrayFloIds.length)
-                                i = -1
-                            else
-                                outterNodes.push(kArrayFloIds[i])
-                        }
-                        resolve(outterNodes)
-                    } else
-                        reject('Given nodes are not in KBucket')
-                });
-            },
-
-            getPrevSupernode: function (flo_addr, n = 1, KB = this.supernodeKBucket) {
-                return new Promise((resolve, reject) => {
-                    try {
-                        let kArrayFloIds = KB.toArray().map(k => k.floID);
-                        let pos = kArrayFloIds.indexOf(flo_addr)
-                        var prevSupernode = []
-                        for (var i = 1; i <= n; i++) {
-                            if (pos - i < 0)
-                                var prev = pos - i + kArrayFloIds.length
-                            else
-                                var prev = pos - i
-                            prevSupernode.push(kArrayFloIds[prev])
-                        }
-                        resolve(prevSupernode);
-                    } catch (error) {
-                        reject(error);
-                    }
-                });
-            },
-
-            getNextSupernode: function (flo_addr, n = 1, KB = this.supernodeKBucket) {
-                return new Promise((resolve, reject) => {
-                    try {
-                        let kArrayFloIds = KB.toArray().map(k => k.floID);
-                        let pos = kArrayFloIds.indexOf(flo_addr)
-                        var nextSupernode = []
-                        for (var i = 1; i <= n; i++) {
-                            if (pos + i >= kArrayFloIds.length)
-                                var next = pos + i - kArrayFloIds.length
-                            else
-                                var next = pos + i
-                            nextSupernode.push(kArrayFloIds[next])
-                        }
-                        resolve(nextSupernode);
-                    } catch (error) {
-                        reject(error);
-                    }
-                });
-            },
-
-            determineClosestSupernode: function (flo_addr, n = 1, KB = this.supernodeKBucket) {
-                return new Promise((resolve, reject) => {
-                    try {
-                        let isFloIdUint8 = flo_addr instanceof Uint8Array;
-                        if (!isFloIdUint8)
-                            flo_addr = this.floIdToKbucketId(flo_addr);
-                        var closestSupernode = KB.closest(flo_addr, n);
-                        closestSupernode = closestSupernode.map(k => k.floID);
-                        resolve(closestSupernode);
-                    } catch (error) {
-                        reject(error);
-                    }
-                });
+  
+      //kBucket object 
+      kBucket: {
+        supernodeKBucket: null,
+        decodeBase58Address: function (address) {
+          let k = bitjs.Base58.decode(address)
+          k.shift()
+          k.splice(-4, 4)
+          return Crypto.util.bytesToHex(k)
+        },
+        floIdToKbucketId: function (address) {
+          const decodedId = this.decodeBase58Address(address);
+          const nodeIdBigInt = new BigInteger(decodedId, 16);
+          const nodeIdBytes = nodeIdBigInt.toByteArrayUnsigned();
+          const nodeIdNewInt8Array = new Uint8Array(nodeIdBytes);
+          return nodeIdNewInt8Array;
+        },
+        launch: function (superNodeList = Object.keys(floGlobals.supernodes), master_floID = floGlobals.adminID) {
+          return new Promise((resolve, reject) => {
+            try {
+              const SuKBucketId = this.floIdToKbucketId(master_floID);
+              const SukbOptions = {
+                localNodeId: SuKBucketId
+              }
+              this.supernodeKBucket = new BuildKBucket(SukbOptions);
+              for (var i = 0; i < superNodeList.length; i++) {
+                this.addNewNode(superNodeList[i])
+              }
+              resolve('SuperNode KBucket formed');
+            } catch (error) {
+              reject(error);
             }
+          });
         },
-
-        sendDataToSN(data, snfloID) {
-            return new Promise((resolve, reject) => {
-                console.log(snfloID)
-                var websocket = new WebSocket("wss://" + floGlobals.supernodes[snfloID].uri + "/ws");
-                websocket.onmessage = (evt => {
-                    if (evt.data == '$+') {
-                        websocket.send(data);
-                        resolve(`Data sent to supernode : ${snfloID}`);
-                    } else if (evt.data == '$-') {
-                        this.kBucket.getNextSupernode(snfloID)
-                            .then(nextNode => this.sendDataToSN(data, nextNode[0]))
-                            .catch(error => reject(error))
-                    } else {
-                        console.log(evt.data)
-                        reject(evt.data)
-                    }
-                    websocket.close();
-                })
-                websocket.onerror = (evt) => {
-                    this.kBucket.getNextSupernode(snfloID)
-                        .then(nextNode => this.sendDataToSN(data, nextNode[0]))
-                        .catch(error => reject(error))
-                };
-            })
+        addContact: function (id, floID, KB = this.supernodeKBucket) {
+          const contact = {
+            id: id,
+            floID: floID
+          };
+          KB.add(contact)
         },
-
-        //Sends data to the supernode
-        sendData: function (data, floID) {
-            return new Promise((resolve, reject) => {
-                this.kBucket.determineClosestSupernode(floID).then(closestNode => {
-                    console.log(closestNode)
-                    this.sendDataToSN(data, closestNode[0])
-                        .then(result => resolve(result))
-                        .catch(error => reject(error))
-                }).catch(error => {
-                    reject(error);
-                });
-            });
+        addNewNode: function (address, KB = this.supernodeKBucket) {
+          let decodedId = address;
+          try {
+            decodedId = this.floIdToKbucketId(address);
+          } catch (e) {
+            decodedId = address;
+          }
+          this.addContact(decodedId, address, KB);
         },
-
-        requestDataFromSN(request, snfloID) {
-            return new Promise((resolve, reject) => {
-                var websocket = new WebSocket("wss://" + floGlobals.supernodes[snfloID].uri + "/ws");
-                websocket.onmessage = (evt => {
-                    if (evt.data == '$+') {
-                        websocket.send(`?${request}`);
-                    } else if (evt.data == '$-') {
-                        this.kBucket.getNextSupernode(snfloID)
-                            .then(nextNode => this.requestDataFromSN(request, nextNode[0]))
-                            .catch(error => reject(error))
-                        websocket.close()
-                    } else {
-                        resolve(evt.data);
-                        websocket.close();
-                    }
-                })
-                websocket.onerror = (evt) => {
-                    this.kBucket.getNextSupernode(snfloID)
-                        .then(nextNode => this.requestDataFromSN(request, nextNode[0]))
-                        .catch(error => reject(error))
-                };
-            })
+        isNodePresent: function (flo_id, KB = this.supernodeKBucket) {
+          let kArray = KB.toArray();
+          let kArrayFloIds = kArray.map(k => k.floID);
+          if (kArrayFloIds.includes(flo_id))
+              return true;
+          else
+              return false;
         },
-
-        //Request data from supernode
-        requestData: function (request, floID) {
-            return new Promise((resolve, reject) => {
-                this.kBucket.determineClosestSupernode(floID).then(closestNode => {
-                    this.requestDataFromSN(request, closestNode[0])
-                        .then(result => resolve(result))
-                        .catch(error => reject(error))
-                }).catch(error => {
-                    reject(error);
-                });
-            });
+   
+        getInnerNodes: function(flo_addr1, flo_addr2, KB = this.supernodeKBucket){
+          return new Promise((resolve, reject) => {
+            let kArrayFloIds = KB.toArray().map(k => k.floID);
+            var innerNodes = []
+            if(kArrayFloIds.includes(flo_addr1) && kArrayFloIds.includes(flo_addr2)){
+              for(var i = kArrayFloIds.indexOf(flo_addr1); i!= flo_addr2; i++){
+                  if(i >= kArrayFloIds.length)
+                      i = -1
+                  else
+                      innerNodes.push(kArrayFloIds[i])
+              }
+              resolve(innerNodes)
+            }else
+              reject('Given nodes are not in KBucket')
+          });
+        },
+  
+        getOuterNodes: function(flo_addr1, flo_addr2, KB = this.supernodeKBucket){
+          return new Promise((resolve, reject) => {
+            let kArrayFloIds = KB.toArray().map(k => k.floID);
+            var outterNodes = []
+            if(kArrayFloIds.includes(flo_addr1) && kArrayFloIds.includes(flo_addr2)){
+              for(var i = kArrayFloIds.indexOf(flo_addr2); i!= flo_addr1; i++){
+                  if(i >= kArrayFloIds.length)
+                      i = -1
+                  else
+                      outterNodes.push(kArrayFloIds[i])
+              }
+              resolve(outterNodes)
+            }else
+              reject('Given nodes are not in KBucket')
+          });
+        },
+  
+        getPrevSupernode: function(flo_addr, n = 1, KB = this.supernodeKBucket){
+          return new Promise((resolve, reject) => {
+            try {
+              let kArrayFloIds = KB.toArray().map(k => k.floID);
+              let pos = kArrayFloIds.indexOf(flo_addr)
+              var prevSupernode = []
+              for(var i = 1; i <= n; i++){
+                  if(pos - i < 0)
+                      var prev = pos - i + kArrayFloIds.length
+                  else
+                      var prev = pos - i
+                  prevSupernode.push(kArrayFloIds[prev])
+              }
+              resolve(prevSupernode);
+            } catch (error) {
+              reject(error);
+            }
+          });
+        },
+  
+        getNextSupernode: function(flo_addr, n = 1, KB = this.supernodeKBucket){
+          return new Promise((resolve, reject) => {
+            try {
+              let kArrayFloIds = KB.toArray().map(k => k.floID);
+              let pos = kArrayFloIds.indexOf(flo_addr)
+              var nextSupernode = []
+              for(var i = 1; i <= n; i++){
+                  if(pos + i >= kArrayFloIds.length)
+                      var next = pos + i - kArrayFloIds.length
+                  else
+                      var next = pos + i
+                  nextSupernode.push(kArrayFloIds[next])
+              }
+              resolve(nextSupernode);
+            } catch (error) {
+              reject(error);
+            }
+          });
+        },
+  
+        determineClosestSupernode: function (flo_addr, n = 1, KB = this.supernodeKBucket) {
+          return new Promise((resolve, reject) => {
+            try {
+              let isFloIdUint8 = flo_addr instanceof Uint8Array;
+              if (!isFloIdUint8)
+                flo_addr = this.floIdToKbucketId(flo_addr);
+              var closestSupernode = KB.closest(flo_addr, n);
+              closestSupernode = closestSupernode.map(k => k.floID);
+              resolve(closestSupernode);
+            } catch (error) {
+              reject(error);
+            }
+          });
         }
+      },
+  
+      sendDataToSN(data, snfloID){
+          return new Promise((resolve, reject) => {
+              console.log(snfloID)
+              var websocket = new WebSocket("wss://" + floGlobals.supernodes[snfloID].uri + "/ws");
+              websocket.onmessage = (evt => {
+                  if(evt.data == '$+'){
+                      websocket.send(data);
+                      resolve(`Data sent to supernode : ${snfloID}`);
+                  }else if(evt.data == '$-'){
+                      this.kBucket.getNextSupernode(snfloID).then(nextNode => {
+                          this.sendDataToSN(data, nextNode[0])
+                              .then(result => resolve(result))
+                              .catch(error => reject(error))
+                      }).catch(error => reject(error))
+                  }else{
+                      console.log(evt.data)
+                      reject(evt.data)
+                  }
+                  websocket.close();
+              })
+              websocket.onerror = (evt) => {
+                  this.kBucket.getNextSupernode(snfloID).then(nextNode => {
+                      this.sendDataToSN(data, nextNode[0])
+                          .then(result => resolve(result))
+                          .catch(error => reject(error))
+                  }).catch(error => reject(error))
+              };
+          })
+      },
+  
+      //Sends data to the supernode
+      sendData: function (data, floID) {
+        return new Promise((resolve, reject) => {
+          this.kBucket.determineClosestSupernode(floID).then(closestNode => {
+              console.log(closestNode)
+              this.sendDataToSN(data, closestNode[0])
+                  .then(result => resolve(result))
+                  .catch(error => reject(error))
+          }).catch(error => {
+              reject(error);
+          });
+        });
+      },
+  
+      requestDataFromSN(request, snfloID){
+          return new Promise((resolve, reject) => {
+              var websocket = new WebSocket("wss://" + floGlobals.supernodes[snfloID].uri + "/ws");
+              websocket.onmessage = (evt => {
+                  if(evt.data == '$+'){
+                      websocket.send(`?${request}`);
+                  }else if(evt.data == '$-'){
+                      this.kBucket.getNextSupernode(snfloID).then(nextNode => {
+                          this.requestDataFromSN(request, nextNode[0])
+                              .then(result => resolve(result))
+                              .catch(error => reject(error))
+                      }).catch(error => reject(error))
+                      websocket.close()
+                  }else{
+                      resolve(evt.data);
+                      websocket.close();
+                  }
+              })
+              websocket.onerror = (evt) => {
+                  this.kBucket.getNextSupernode(snfloID).then(nextNode => {
+                      this.requestDataFromSN(request, nextNode[0])
+                          .then(result => resolve(result))
+                          .catch(error => reject(error))
+                  }).catch(error => reject(error))
+              };
+          })
+      },
+  
+      //Request data from supernode
+      requestData: function (request, floID) {
+        return new Promise((resolve, reject) => {
+          this.kBucket.determineClosestSupernode(floID).then(closestNode => {
+              this.requestDataFromSN(request, closestNode[0])
+                  .then(result => resolve(result))
+                  .catch(error => reject(error))
+          }).catch(error => {
+              reject(error);
+          });
+        });
+      }
     }
-
+  
     /**Kademlia DHT K-bucket implementation as a binary tree.
      * Implementation of a Kademlia DHT k-bucket used for storing
      * contact (peer node) information.
      *
      * @extends EventEmitter
      */
-    function BuildKBucket(options = {}) {
-        /**
-         * `options`:
-         *   `distance`: Function
-         *     `function (firstId, secondId) { return distance }` An optional
-         *     `distance` function that gets two `id` Uint8Arrays
-         *     and return distance (as number) between them.
-         *   `arbiter`: Function (Default: vectorClock arbiter)
-         *     `function (incumbent, candidate) { return contact; }` An optional
-         *     `arbiter` function that givent two `contact` objects with the same `id`
-         *     returns the desired object to be used for updating the k-bucket. For
-         *     more details, see [arbiter function](#arbiter-function).
-         *   `localNodeId`: Uint8Array An optional Uint8Array representing the local node id.
-         *     If not provided, a local node id will be created via `randomBytes(20)`.
-         *     `metadata`: Object (Default: {}) Optional satellite data to include
-         *     with the k-bucket. `metadata` property is guaranteed not be altered by,
-         *     it is provided as an explicit container for users of k-bucket to store
-         *     implementation-specific data.
-         *   `numberOfNodesPerKBucket`: Integer (Default: 20) The number of nodes
-         *     that a k-bucket can contain before being full or split.
-         *     `numberOfNodesToPing`: Integer (Default: 3) The number of nodes to
-         *     ping when a bucket that should not be split becomes full. KBucket will
-         *     emit a `ping` event that contains `numberOfNodesToPing` nodes that have
-         *     not been contacted the longest.
-         *
-         * @param {Object=} options optional
-         */
-
-        this.localNodeId = options.localNodeId || window.crypto.getRandomValues(new Uint8Array(20))
-        this.numberOfNodesPerKBucket = options.numberOfNodesPerKBucket || 20
-        this.numberOfNodesToPing = options.numberOfNodesToPing || 3
-        this.distance = options.distance || this.distance
-        // use an arbiter from options or vectorClock arbiter by default
-        this.arbiter = options.arbiter || this.arbiter
-        this.metadata = Object.assign({}, options.metadata)
-
-        this.createNode = function () {
-            return {
-                contacts: [],
-                dontSplit: false,
-                left: null,
-                right: null
-            }
+     function BuildKBucket(options = {}) {
+      /**
+       * `options`:
+       *   `distance`: Function
+       *     `function (firstId, secondId) { return distance }` An optional
+       *     `distance` function that gets two `id` Uint8Arrays
+       *     and return distance (as number) between them.
+       *   `arbiter`: Function (Default: vectorClock arbiter)
+       *     `function (incumbent, candidate) { return contact; }` An optional
+       *     `arbiter` function that givent two `contact` objects with the same `id`
+       *     returns the desired object to be used for updating the k-bucket. For
+       *     more details, see [arbiter function](#arbiter-function).
+       *   `localNodeId`: Uint8Array An optional Uint8Array representing the local node id.
+       *     If not provided, a local node id will be created via `randomBytes(20)`.
+       *     `metadata`: Object (Default: {}) Optional satellite data to include
+       *     with the k-bucket. `metadata` property is guaranteed not be altered by,
+       *     it is provided as an explicit container for users of k-bucket to store
+       *     implementation-specific data.
+       *   `numberOfNodesPerKBucket`: Integer (Default: 20) The number of nodes
+       *     that a k-bucket can contain before being full or split.
+       *     `numberOfNodesToPing`: Integer (Default: 3) The number of nodes to
+       *     ping when a bucket that should not be split becomes full. KBucket will
+       *     emit a `ping` event that contains `numberOfNodesToPing` nodes that have
+       *     not been contacted the longest.
+       *
+       * @param {Object=} options optional
+       */
+  
+      this.localNodeId = options.localNodeId || window.crypto.getRandomValues(new Uint8Array(20))
+      this.numberOfNodesPerKBucket = options.numberOfNodesPerKBucket || 20
+      this.numberOfNodesToPing = options.numberOfNodesToPing || 3
+      this.distance = options.distance || this.distance
+      // use an arbiter from options or vectorClock arbiter by default
+      this.arbiter = options.arbiter || this.arbiter
+      this.metadata = Object.assign({}, options.metadata)
+  
+      this.createNode = function () {
+        return {
+          contacts: [],
+          dontSplit: false,
+          left: null,
+          right: null
         }
-
-        this.ensureInt8 = function (name, val) {
-            if (!(val instanceof Uint8Array)) {
-                throw new TypeError(name + ' is not a Uint8Array')
-            }
+      }
+  
+      this.ensureInt8 = function (name, val) {
+        if (!(val instanceof Uint8Array)) {
+          throw new TypeError(name + ' is not a Uint8Array')
         }
-
-        /**
-         * @param  {Uint8Array} array1
-         * @param  {Uint8Array} array2
-         * @return {Boolean}
-         */
-        this.arrayEquals = function (array1, array2) {
-            if (array1 === array2) {
-                return true
-            }
-            if (array1.length !== array2.length) {
-                return false
-            }
-            for (let i = 0, length = array1.length; i < length; ++i) {
-                if (array1[i] !== array2[i]) {
-                    return false
-                }
-            }
-            return true
+      }
+  
+      /**
+       * @param  {Uint8Array} array1
+       * @param  {Uint8Array} array2
+       * @return {Boolean}
+       */
+      this.arrayEquals = function (array1, array2) {
+        if (array1 === array2) {
+          return true
         }
-
-        this.ensureInt8('option.localNodeId as parameter 1', this.localNodeId)
-        this.root = this.createNode()
-
-        /**
-         * Default arbiter function for contacts with the same id. Uses
-         * contact.vectorClock to select which contact to update the k-bucket with.
-         * Contact with larger vectorClock field will be selected. If vectorClock is
-         * the same, candidat will be selected.
-         *
-         * @param  {Object} incumbent Contact currently stored in the k-bucket.
-         * @param  {Object} candidate Contact being added to the k-bucket.
-         * @return {Object}           Contact to updated the k-bucket with.
-         */
-        this.arbiter = function (incumbent, candidate) {
-            return incumbent.vectorClock > candidate.vectorClock ? incumbent : candidate
+        if (array1.length !== array2.length) {
+          return false
         }
-
-        /**
-         * Default distance function. Finds the XOR
-         * distance between firstId and secondId.
-         *
-         * @param  {Uint8Array} firstId  Uint8Array containing first id.
-         * @param  {Uint8Array} secondId Uint8Array containing second id.
-         * @return {Number}              Integer The XOR distance between firstId
-         *                               and secondId.
-         */
-        this.distance = function (firstId, secondId) {
-            let distance = 0
-            let i = 0
-            const min = Math.min(firstId.length, secondId.length)
-            const max = Math.max(firstId.length, secondId.length)
-            for (; i < min; ++i) {
-                distance = distance * 256 + (firstId[i] ^ secondId[i])
-            }
-            for (; i < max; ++i) distance = distance * 256 + 255
-            return distance
+        for (let i = 0, length = array1.length; i < length; ++i) {
+          if (array1[i] !== array2[i]) {
+            return false
+          }
         }
-
-        /**
-         * Adds a contact to the k-bucket.
-         *
-         * @param {Object} contact the contact object to add
-         */
-        this.add = function (contact) {
-            this.ensureInt8('contact.id', (contact || {}).id)
-
-            let bitIndex = 0
-            let node = this.root
-
-            while (node.contacts === null) {
-                // this is not a leaf node but an inner node with 'low' and 'high'
-                // branches; we will check the appropriate bit of the identifier and
-                // delegate to the appropriate node for further processing
-                node = this._determineNode(node, contact.id, bitIndex++)
-            }
-
-            // check if the contact already exists
-            const index = this._indexOf(node, contact.id)
-            if (index >= 0) {
-                this._update(node, index, contact)
-                return this
-            }
-
-            if (node.contacts.length < this.numberOfNodesPerKBucket) {
-                node.contacts.push(contact)
-                return this
-            }
-
-            // the bucket is full
-            if (node.dontSplit) {
-                // we are not allowed to split the bucket
-                // we need to ping the first this.numberOfNodesToPing
-                // in order to determine if they are alive
-                // only if one of the pinged nodes does not respond, can the new contact
-                // be added (this prevents DoS flodding with new invalid contacts)
-                return this
-            }
-
-            this._split(node, bitIndex)
-            return this.add(contact)
+        return true
+      }
+  
+      this.ensureInt8('option.localNodeId as parameter 1', this.localNodeId)
+      this.root = this.createNode()
+  
+      /**
+       * Default arbiter function for contacts with the same id. Uses
+       * contact.vectorClock to select which contact to update the k-bucket with.
+       * Contact with larger vectorClock field will be selected. If vectorClock is
+       * the same, candidat will be selected.
+       *
+       * @param  {Object} incumbent Contact currently stored in the k-bucket.
+       * @param  {Object} candidate Contact being added to the k-bucket.
+       * @return {Object}           Contact to updated the k-bucket with.
+       */
+      this.arbiter = function (incumbent, candidate) {
+        return incumbent.vectorClock > candidate.vectorClock ? incumbent : candidate
+      }
+  
+      /**
+       * Default distance function. Finds the XOR
+       * distance between firstId and secondId.
+       *
+       * @param  {Uint8Array} firstId  Uint8Array containing first id.
+       * @param  {Uint8Array} secondId Uint8Array containing second id.
+       * @return {Number}              Integer The XOR distance between firstId
+       *                               and secondId.
+       */
+      this.distance = function (firstId, secondId) {
+        let distance = 0
+        let i = 0
+        const min = Math.min(firstId.length, secondId.length)
+        const max = Math.max(firstId.length, secondId.length)
+        for (; i < min; ++i) {
+          distance = distance * 256 + (firstId[i] ^ secondId[i])
         }
-
-        /**
-         * Get the n closest contacts to the provided node id. "Closest" here means:
-         * closest according to the XOR metric of the contact node id.
-         *
-         * @param  {Uint8Array} id  Contact node id
-         * @param  {Number=} n      Integer (Default: Infinity) The maximum number of
-         *                          closest contacts to return
-         * @return {Array}          Array Maximum of n closest contacts to the node id
-         */
-        this.closest = function (id, n = Infinity) {
-            this.ensureInt8('id', id)
-
-            if ((!Number.isInteger(n) && n !== Infinity) || n <= 0) {
-                throw new TypeError('n is not positive number')
-            }
-
-            let contacts = []
-
-            for (let nodes = [this.root], bitIndex = 0; nodes.length > 0 && contacts.length < n;) {
-                const node = nodes.pop()
-                if (node.contacts === null) {
-                    const detNode = this._determineNode(node, id, bitIndex++)
-                    nodes.push(node.left === detNode ? node.right : node.left)
-                    nodes.push(detNode)
-                } else {
-                    contacts = contacts.concat(node.contacts)
-                }
-            }
-
-            return contacts
-                .map(a => [this.distance(a.id, id), a])
-                .sort((a, b) => a[0] - b[0])
-                .slice(0, n)
-                .map(a => a[1])
+        for (; i < max; ++i) distance = distance * 256 + 255
+        return distance
+      }
+  
+      /**
+       * Adds a contact to the k-bucket.
+       *
+       * @param {Object} contact the contact object to add
+       */
+      this.add = function (contact) {
+        this.ensureInt8('contact.id', (contact || {}).id)
+  
+        let bitIndex = 0
+        let node = this.root
+  
+        while (node.contacts === null) {
+          // this is not a leaf node but an inner node with 'low' and 'high'
+          // branches; we will check the appropriate bit of the identifier and
+          // delegate to the appropriate node for further processing
+          node = this._determineNode(node, contact.id, bitIndex++)
         }
-
-        /**
-         * Counts the total number of contacts in the tree.
-         *
-         * @return {Number} The number of contacts held in the tree
-         */
-        this.count = function () {
-            // return this.toArray().length
-            let count = 0
-            for (const nodes = [this.root]; nodes.length > 0;) {
-                const node = nodes.pop()
-                if (node.contacts === null) nodes.push(node.right, node.left)
-                else count += node.contacts.length
-            }
-            return count
+  
+        // check if the contact already exists
+        const index = this._indexOf(node, contact.id)
+        if (index >= 0) {
+          this._update(node, index, contact)
+          return this
         }
-
-        /**
-         * Determines whether the id at the bitIndex is 0 or 1.
-         * Return left leaf if `id` at `bitIndex` is 0, right leaf otherwise
-         *
-         * @param  {Object} node     internal object that has 2 leafs: left and right
-         * @param  {Uint8Array} id   Id to compare localNodeId with.
-         * @param  {Number} bitIndex Integer (Default: 0) The bit index to which bit
-         *                           to check in the id Uint8Array.
-         * @return {Object}          left leaf if id at bitIndex is 0, right leaf otherwise.
-         */
-        this._determineNode = function (node, id, bitIndex) {
-            // *NOTE* remember that id is a Uint8Array and has granularity of
-            // bytes (8 bits), whereas the bitIndex is the bit index (not byte)
-
-            // id's that are too short are put in low bucket (1 byte = 8 bits)
-            // (bitIndex >> 3) finds how many bytes the bitIndex describes
-            // bitIndex % 8 checks if we have extra bits beyond byte multiples
-            // if number of bytes is <= no. of bytes described by bitIndex and there
-            // are extra bits to consider, this means id has less bits than what
-            // bitIndex describes, id therefore is too short, and will be put in low
-            // bucket
-            const bytesDescribedByBitIndex = bitIndex >> 3
-            const bitIndexWithinByte = bitIndex % 8
-            if ((id.length <= bytesDescribedByBitIndex) && (bitIndexWithinByte !== 0)) {
-                return node.left
-            }
-
-            const byteUnderConsideration = id[bytesDescribedByBitIndex]
-
-            // byteUnderConsideration is an integer from 0 to 255 represented by 8 bits
-            // where 255 is 11111111 and 0 is 00000000
-            // in order to find out whether the bit at bitIndexWithinByte is set
-            // we construct (1 << (7 - bitIndexWithinByte)) which will consist
-            // of all bits being 0, with only one bit set to 1
-            // for example, if bitIndexWithinByte is 3, we will construct 00010000 by
-            // (1 << (7 - 3)) -> (1 << 4) -> 16
-            if (byteUnderConsideration & (1 << (7 - bitIndexWithinByte))) {
-                return node.right
-            }
-
-            return node.left
+  
+        if (node.contacts.length < this.numberOfNodesPerKBucket) {
+          node.contacts.push(contact)
+          return this
         }
-
-        /**
-         * Get a contact by its exact ID.
-         * If this is a leaf, loop through the bucket contents and return the correct
-         * contact if we have it or null if not. If this is an inner node, determine
-         * which branch of the tree to traverse and repeat.
-         *
-         * @param  {Uint8Array} id The ID of the contact to fetch.
-         * @return {Object|Null}   The contact if available, otherwise null
-         */
-        this.get = function (id) {
-            this.ensureInt8('id', id)
-
-            let bitIndex = 0
-
-            let node = this.root
-            while (node.contacts === null) {
-                node = this._determineNode(node, id, bitIndex++)
-            }
-
-            // index of uses contact id for matching
-            const index = this._indexOf(node, id)
-            return index >= 0 ? node.contacts[index] : null
+  
+        // the bucket is full
+        if (node.dontSplit) {
+          // we are not allowed to split the bucket
+          // we need to ping the first this.numberOfNodesToPing
+          // in order to determine if they are alive
+          // only if one of the pinged nodes does not respond, can the new contact
+          // be added (this prevents DoS flodding with new invalid contacts)
+          return this
         }
-
-        /**
-         * Returns the index of the contact with provided
-         * id if it exists, returns -1 otherwise.
-         *
-         * @param  {Object} node    internal object that has 2 leafs: left and right
-         * @param  {Uint8Array} id  Contact node id.
-         * @return {Number}         Integer Index of contact with provided id if it
-         *                          exists, -1 otherwise.
-         */
-        this._indexOf = function (node, id) {
-            for (let i = 0; i < node.contacts.length; ++i) {
-                if (this.arrayEquals(node.contacts[i].id, id)) return i
-            }
-
-            return -1
+  
+        this._split(node, bitIndex)
+        return this.add(contact)
+      }
+  
+      /**
+       * Get the n closest contacts to the provided node id. "Closest" here means:
+       * closest according to the XOR metric of the contact node id.
+       *
+       * @param  {Uint8Array} id  Contact node id
+       * @param  {Number=} n      Integer (Default: Infinity) The maximum number of
+       *                          closest contacts to return
+       * @return {Array}          Array Maximum of n closest contacts to the node id
+       */
+      this.closest = function (id, n = Infinity) {
+        this.ensureInt8('id', id)
+  
+        if ((!Number.isInteger(n) && n !== Infinity) || n <= 0) {
+          throw new TypeError('n is not positive number')
         }
-
-        /**
-         * Removes contact with the provided id.
-         *
-         * @param  {Uint8Array} id The ID of the contact to remove.
-         * @return {Object}        The k-bucket itself.
-         */
-        this.remove = function (id) {
-            this.ensureInt8('the id as parameter 1', id)
-
-            let bitIndex = 0
-            let node = this.root
-
-            while (node.contacts === null) {
-                node = this._determineNode(node, id, bitIndex++)
-            }
-
-            const index = this._indexOf(node, id)
-            if (index >= 0) {
-                const contact = node.contacts.splice(index, 1)[0]
-            }
-
-            return this
+  
+        let contacts = []
+  
+        for (let nodes = [this.root], bitIndex = 0; nodes.length > 0 && contacts.length < n;) {
+          const node = nodes.pop()
+          if (node.contacts === null) {
+            const detNode = this._determineNode(node, id, bitIndex++)
+            nodes.push(node.left === detNode ? node.right : node.left)
+            nodes.push(detNode)
+          } else {
+            contacts = contacts.concat(node.contacts)
+          }
         }
-
-        /**
-         * Splits the node, redistributes contacts to the new nodes, and marks the
-         * node that was split as an inner node of the binary tree of nodes by
-         * setting this.root.contacts = null
-         *
-         * @param  {Object} node     node for splitting
-         * @param  {Number} bitIndex the bitIndex to which byte to check in the
-         *                           Uint8Array for navigating the binary tree
-         */
-        this._split = function (node, bitIndex) {
-            node.left = this.createNode()
-            node.right = this.createNode()
-
-            // redistribute existing contacts amongst the two newly created nodes
-            for (const contact of node.contacts) {
-                this._determineNode(node, contact.id, bitIndex).contacts.push(contact)
-            }
-
-            node.contacts = null // mark as inner tree node
-
-            // don't split the "far away" node
-            // we check where the local node would end up and mark the other one as
-            // "dontSplit" (i.e. "far away")
-            const detNode = this._determineNode(node, this.localNodeId, bitIndex)
-            const otherNode = node.left === detNode ? node.right : node.left
-            otherNode.dontSplit = true
+  
+        return contacts
+          .map(a => [this.distance(a.id, id), a])
+          .sort((a, b) => a[0] - b[0])
+          .slice(0, n)
+          .map(a => a[1])
+      }
+  
+      /**
+       * Counts the total number of contacts in the tree.
+       *
+       * @return {Number} The number of contacts held in the tree
+       */
+      this.count = function () {
+        // return this.toArray().length
+        let count = 0
+        for (const nodes = [this.root]; nodes.length > 0;) {
+          const node = nodes.pop()
+          if (node.contacts === null) nodes.push(node.right, node.left)
+          else count += node.contacts.length
         }
-
-        /**
-         * Returns all the contacts contained in the tree as an array.
-         * If this is a leaf, return a copy of the bucket. `slice` is used so that we
-         * don't accidentally leak an internal reference out that might be
-         * accidentally misused. If this is not a leaf, return the union of the low
-         * and high branches (themselves also as arrays).
-         *
-         * @return {Array} All of the contacts in the tree, as an array
-         */
-        this.toArray = function () {
-            let result = []
-            for (const nodes = [this.root]; nodes.length > 0;) {
-                const node = nodes.pop()
-                if (node.contacts === null) nodes.push(node.right, node.left)
-                else result = result.concat(node.contacts)
-            }
-            return result
+        return count
+      }
+  
+      /**
+       * Determines whether the id at the bitIndex is 0 or 1.
+       * Return left leaf if `id` at `bitIndex` is 0, right leaf otherwise
+       *
+       * @param  {Object} node     internal object that has 2 leafs: left and right
+       * @param  {Uint8Array} id   Id to compare localNodeId with.
+       * @param  {Number} bitIndex Integer (Default: 0) The bit index to which bit
+       *                           to check in the id Uint8Array.
+       * @return {Object}          left leaf if id at bitIndex is 0, right leaf otherwise.
+       */
+      this._determineNode = function (node, id, bitIndex) {
+        // *NOTE* remember that id is a Uint8Array and has granularity of
+        // bytes (8 bits), whereas the bitIndex is the bit index (not byte)
+  
+        // id's that are too short are put in low bucket (1 byte = 8 bits)
+        // (bitIndex >> 3) finds how many bytes the bitIndex describes
+        // bitIndex % 8 checks if we have extra bits beyond byte multiples
+        // if number of bytes is <= no. of bytes described by bitIndex and there
+        // are extra bits to consider, this means id has less bits than what
+        // bitIndex describes, id therefore is too short, and will be put in low
+        // bucket
+        const bytesDescribedByBitIndex = bitIndex >> 3
+        const bitIndexWithinByte = bitIndex % 8
+        if ((id.length <= bytesDescribedByBitIndex) && (bitIndexWithinByte !== 0)) {
+          return node.left
         }
-
-        /**
-         * Updates the contact selected by the arbiter.
-         * If the selection is our old contact and the candidate is some new contact
-         * then the new contact is abandoned (not added).
-         * If the selection is our old contact and the candidate is our old contact
-         * then we are refreshing the contact and it is marked as most recently
-         * contacted (by being moved to the right/end of the bucket array).
-         * If the selection is our new contact, the old contact is removed and the new
-         * contact is marked as most recently contacted.
-         *
-         * @param  {Object} node    internal object that has 2 leafs: left and right
-         * @param  {Number} index   the index in the bucket where contact exists
-         *                          (index has already been computed in a previous
-         *                          calculation)
-         * @param  {Object} contact The contact object to update.
-         */
-        this._update = function (node, index, contact) {
-            // sanity check
-            if (!this.arrayEquals(node.contacts[index].id, contact.id)) {
-                throw new Error('wrong index for _update')
-            }
-
-            const incumbent = node.contacts[index]
-            const selection = this.arbiter(incumbent, contact)
-            // if the selection is our old contact and the candidate is some new
-            // contact, then there is nothing to do
-            if (selection === incumbent && incumbent !== contact) return
-
-            node.contacts.splice(index, 1) // remove old contact
-            node.contacts.push(selection) // add more recent contact version
-
+  
+        const byteUnderConsideration = id[bytesDescribedByBitIndex]
+  
+        // byteUnderConsideration is an integer from 0 to 255 represented by 8 bits
+        // where 255 is 11111111 and 0 is 00000000
+        // in order to find out whether the bit at bitIndexWithinByte is set
+        // we construct (1 << (7 - bitIndexWithinByte)) which will consist
+        // of all bits being 0, with only one bit set to 1
+        // for example, if bitIndexWithinByte is 3, we will construct 00010000 by
+        // (1 << (7 - 3)) -> (1 << 4) -> 16
+        if (byteUnderConsideration & (1 << (7 - bitIndexWithinByte))) {
+          return node.right
         }
+  
+        return node.left
+      }
+  
+      /**
+       * Get a contact by its exact ID.
+       * If this is a leaf, loop through the bucket contents and return the correct
+       * contact if we have it or null if not. If this is an inner node, determine
+       * which branch of the tree to traverse and repeat.
+       *
+       * @param  {Uint8Array} id The ID of the contact to fetch.
+       * @return {Object|Null}   The contact if available, otherwise null
+       */
+      this.get = function (id) {
+        this.ensureInt8('id', id)
+  
+        let bitIndex = 0
+  
+        let node = this.root
+        while (node.contacts === null) {
+          node = this._determineNode(node, id, bitIndex++)
+        }
+  
+        // index of uses contact id for matching
+        const index = this._indexOf(node, id)
+        return index >= 0 ? node.contacts[index] : null
+      }
+  
+      /**
+       * Returns the index of the contact with provided
+       * id if it exists, returns -1 otherwise.
+       *
+       * @param  {Object} node    internal object that has 2 leafs: left and right
+       * @param  {Uint8Array} id  Contact node id.
+       * @return {Number}         Integer Index of contact with provided id if it
+       *                          exists, -1 otherwise.
+       */
+      this._indexOf = function (node, id) {
+        for (let i = 0; i < node.contacts.length; ++i) {
+          if (this.arrayEquals(node.contacts[i].id, id)) return i
+        }
+  
+        return -1
+      }
+  
+      /**
+       * Removes contact with the provided id.
+       *
+       * @param  {Uint8Array} id The ID of the contact to remove.
+       * @return {Object}        The k-bucket itself.
+       */
+      this.remove = function (id) {
+        this.ensureInt8('the id as parameter 1', id)
+  
+        let bitIndex = 0
+        let node = this.root
+  
+        while (node.contacts === null) {
+          node = this._determineNode(node, id, bitIndex++)
+        }
+  
+        const index = this._indexOf(node, id)
+        if (index >= 0) {
+          const contact = node.contacts.splice(index, 1)[0]
+        }
+  
+        return this
+      }
+  
+      /**
+       * Splits the node, redistributes contacts to the new nodes, and marks the
+       * node that was split as an inner node of the binary tree of nodes by
+       * setting this.root.contacts = null
+       *
+       * @param  {Object} node     node for splitting
+       * @param  {Number} bitIndex the bitIndex to which byte to check in the
+       *                           Uint8Array for navigating the binary tree
+       */
+      this._split = function (node, bitIndex) {
+        node.left = this.createNode()
+        node.right = this.createNode()
+  
+        // redistribute existing contacts amongst the two newly created nodes
+        for (const contact of node.contacts) {
+          this._determineNode(node, contact.id, bitIndex).contacts.push(contact)
+        }
+  
+        node.contacts = null // mark as inner tree node
+  
+        // don't split the "far away" node
+        // we check where the local node would end up and mark the other one as
+        // "dontSplit" (i.e. "far away")
+        const detNode = this._determineNode(node, this.localNodeId, bitIndex)
+        const otherNode = node.left === detNode ? node.right : node.left
+        otherNode.dontSplit = true
+      }
+  
+      /**
+       * Returns all the contacts contained in the tree as an array.
+       * If this is a leaf, return a copy of the bucket. `slice` is used so that we
+       * don't accidentally leak an internal reference out that might be
+       * accidentally misused. If this is not a leaf, return the union of the low
+       * and high branches (themselves also as arrays).
+       *
+       * @return {Array} All of the contacts in the tree, as an array
+       */
+      this.toArray = function () {
+        let result = []
+        for (const nodes = [this.root]; nodes.length > 0;) {
+          const node = nodes.pop()
+          if (node.contacts === null) nodes.push(node.right, node.left)
+          else result = result.concat(node.contacts)
+        }
+        return result
+      }
+  
+      /**
+       * Updates the contact selected by the arbiter.
+       * If the selection is our old contact and the candidate is some new contact
+       * then the new contact is abandoned (not added).
+       * If the selection is our old contact and the candidate is our old contact
+       * then we are refreshing the contact and it is marked as most recently
+       * contacted (by being moved to the right/end of the bucket array).
+       * If the selection is our new contact, the old contact is removed and the new
+       * contact is marked as most recently contacted.
+       *
+       * @param  {Object} node    internal object that has 2 leafs: left and right
+       * @param  {Number} index   the index in the bucket where contact exists
+       *                          (index has already been computed in a previous
+       *                          calculation)
+       * @param  {Object} contact The contact object to update.
+       */
+      this._update = function (node, index, contact) {
+        // sanity check
+        if (!this.arrayEquals(node.contacts[index].id, contact.id)) {
+          throw new Error('wrong index for _update')
+        }
+  
+        const incumbent = node.contacts[index]
+        const selection = this.arbiter(incumbent, contact)
+        // if the selection is our old contact and the candidate is some new
+        // contact, then there is nothing to do
+        if (selection === incumbent && incumbent !== contact) return
+  
+        node.contacts.splice(index, 1) // remove old contact
+        node.contacts.push(selection) // add more recent contact version
+  
+      }
     }
-
+  
 </script>
 <script id="compactIDB">
     /* Compact IndexedDB operations */
@@ -9560,46 +9569,7 @@
                         appObjects: {},
                         vectorClock: {},
                         generalData: {},
-                        generalVC: {},
-                        /* ecommerce app */
-                        // general purposes datastores
-                        myInfo: {
-                            indexes: {pubKey: null}
-                        },
-                        live_orders: {
-                            indexes: { 
-                                orderId: null, 
-                                productCategory: null, 
-                                dateOfOrder: null,
-                                status: null,
-                            }
-                        },
-                        my_orders_history: {
-                            indexes: { 
-                                orderId: null, 
-                                productCategory: null, 
-                                dateOfOrder: null,
-                                status: null,
-                            }
-                        },
-
-                        // for Seller view
-                        sellerProducts: {
-                            indexes: { 
-                                productFloId: null,  
-                                productCategory: null,
-                                productType: null,
-                                status: null,
-                            }
-                        },
-
-                        // for Buyer view
-                        my_search_history: {
-                            indexes: {
-                                productCategory: null,
-                            }  
-                        }
-
+                        generalVC: {}
                     }
                     //add other given objectStores
                     for (o in this.appObs)
@@ -9837,25 +9807,22 @@
 
     reactor.registerEvent("startUpErrorLog");
     reactor.addEventListener("startUpErrorLog", log => console.error(log))
-    reactor.addEventListener("startUpErrorLog", log => showMessage(log))
+    reactor.addEventListener("startUpErrorLog", log => console.showMessage(log))
 
     function onLoadStartUp() {
         showMessage("Starting the app! Please Wait!")
         floDapps.launchStartUp().then(result => {
-            
-            // identify and unlock user functions
-             ecommerce.actions.doShreeGanesh();
-            
             console.log(result)
             showMessage(result)
             showMessage(`Welcome ${myFloID}`)
+            ecommerce.actions.doShreeGanesh();
         }).catch(error => console.error(error))
     }
 </script>
 
 <script>
 
-    function system_message(msg='', type='') {
+    function showMessage(msg='', type='') {
         console.log(msg);
     }
 
@@ -9970,8 +9937,9 @@
         
         parse_flo_comments: async function() {
                 text = `masterFLOPubKey=03EA5E2CAB18DA585400D6EC569438D415FAF200528E05D0E2B9BEAA2B5C3DCA90
-                #!#SUBJECT='TEST_ECOMMERCE'
-                #!#DATA_TYPE=EC1
+                #!#SUBJECT=TEST_ECOMMERCE_4
+                #!#DATA_TYPE=EC4
+                #!#CITY=Ranchi
                 #!#product_categories = Electronics,Clothes & Accessories,Home Appliances
                 #!#cashiers=
                 {
@@ -10063,34 +10031,37 @@
                 floAssetsArray[1].trim() !== ""
             ) {
             try {
-                floAssetsArray.map(function(assets_string) {
-                let k = assets_string.split("=");
+                for (const assets_string of floAssetsArray) {
+                    
+                    let k = assets_string.split("=");
 
-                if (k[1].indexOf(",") > 0 && k[1].indexOf("{") == -1) {
-                    k[1] = k[1]
-                    .split(",")
-                    .map(val =>
-                        !isNaN(val) ? parseFloat(val) : val.trim()
-                    )
-                    .filter(v => ![null, "", undefined, NaN].includes(v));
-                } else if (!isNaN(k[1])) {
-                    k[1] = parseFloat(k[1]);
-                }
-                if (typeof k[1] == "string" && k[1].indexOf("{") >= 0) {
-                    k[1] = JSON.parse(k[1].replace(/ /g, ""));
-                }
-
-                return Object.defineProperty(
-                    ecommerce.master_configurations,
-                    k[0],
-                    {
-                    value: k[1],
-                    writable: false,
-                    configurable: false,
-                    enumerable: true
+                    if (k[1].indexOf(",") > 0 && k[1].indexOf("{") == -1) {
+                        k[1] = k[1]
+                        .split(",")
+                        .map(val =>
+                            !isNaN(val) ? parseFloat(val) : val.trim()
+                        )
+                        .filter(v => ![null, "", undefined, NaN].includes(v));
+                    } else if (!isNaN(k[1])) {
+                        k[1] = parseFloat(k[1]);
                     }
-                );
-                });
+                    if (typeof k[1] == "string" && k[1].indexOf("{") >= 0) {
+                        k[1] = JSON.parse(k[1].replace(/ /g, ""));
+                    }
+
+                    if(typeof ecommerce.master_configurations!=="object") ecommerce.master_configurations = {};
+
+                    Object.defineProperty(
+                        ecommerce.master_configurations,
+                        k[0],
+                        {
+                        value: k[1],
+                        writable: false,
+                        configurable: false,
+                        enumerable: true
+                        }
+                    );
+                }
                 deepFreeze(ecommerce.master_configurations);
                 console.log(ecommerce);
                 return ecommerce;
@@ -10110,19 +10081,49 @@
             await this.fetch_configs();
             
             // Identify logged in user as either buyer, seller, cashier or courier
-            const loggedInUser = new ecommerce.users.current_user({
+            ecommerce.loggedInUser = new ecommerce.users.current_user({
                 flo_id: myFloID,
             });
 
-            deepFreeze(loggedInUser.user_info);
+            deepFreeze(ecommerce.loggedInUser.user_info);
+
+            const LIVE_USER = ecommerce.loggedInUser;
             
+            if(LIVE_USER.user_info.user_role==='BUYER') {
+                LIVE_USER.user_info.set_delivery_receiving_address();
+            }
+
+            this.retrieveLatestContent();
+
+        },
+
+        retrieveLatestContent: async function (receiverID = floGlobals.adminID, senderIDs = floGlobals.subAdmins) {
+            showMessage('Loading the latest content')
+            await floCloudAPI.requestObjectData(ecommerce.master_configurations.SUBJECT, { receiverID, senderIDs });
+            await floCloudAPI.requestGeneralData(ecommerce.master_configurations.DATA_TYPE);
+            console.log(floGlobals.appObjects[ecommerce.master_configurations.SUBJECT]);
+        },
+
+        logout: function () {
+            if (confirm("Do you want to logout?")) {
+                floDapps.clearCredentials()
+                compactIDB.deleteDB().then((message) => {
+                    delete ecommerce.master_configurations;
+                    delete ecommerce.loggedInUser;
+                    console.log(message)
+                    onLoadStartUp()
+                    alert('You have logged out successfully.')
+                }).catch((error) => {
+                    console.log(error)
+                })
+            }
         },
     } 
 
     ecommerce.users = {
         current_user: function User(user_details='') {
             
-            if(typeof User.instance === 'object') return User.instance;
+            //if(typeof User.instance === 'object') return User.instance;
                   
             if(Object.keys(ecommerce.master_configurations.sellers_list)
             .includes(user_details.flo_id)) {
@@ -10131,7 +10132,7 @@
                 seller_details.certificate = ecommerce.master_configurations.sellers_list[myFloID].certificate;
                 seller_details.location = ecommerce.master_configurations.sellers_list[myFloID].location;
                 User.prototype.user_info = new ecommerce.users.user_types.sellers(seller_details);
-            } else if(Object.keys(ecommerce.master_configurations.cashiers_list)
+            } else if(Object.keys(ecommerce.master_configurations.cashiers)
             .includes(user_details.flo_id)) {
                 const cashier_details = {};
                 cashier_details.upi_id = ecommerce.master_configurations.cashiers[myFloID].upi_id;
@@ -10145,6 +10146,8 @@
                 courier_details.approved_by = ecommerce.master_configurations.couriers_list[myFloID].approved_by;
                 courier_details.certificate = ecommerce.master_configurations.couriers_list[myFloID].certificate;
                 User.prototype.user_info = new ecommerce.users.user_types.couriers(user_details);
+            } else if(floGlobals.subAdmins.includes(user_details.flo_id)) {
+                User.prototype.user_info = new ecommerce.users.user_types.system_managers(user_details);
             } else {
                 user_details.location = user_details.location || "";
                 User.prototype.user_info = new ecommerce.users.user_types.buyers(user_details);
@@ -10162,7 +10165,7 @@
                         this[key] = obj;
                     }
                 }
-                this.buyer_id = myFloID;   
+                this.flo_id = myFloID;   
                 this.user_role = "BUYER";
                 this.buy_list = [];
                 this.total_buying_price = 0;
@@ -10174,7 +10177,7 @@
                         this[key] = obj;
                     }
                 }
-                this.seller_id = myFloID;
+                this.flo_id = myFloID;
                 this.user_role = "SELLER";
             },
             cashiers: function Cashier(cashier_details={}) {
@@ -10184,7 +10187,7 @@
                         this[key] = obj;
                     }
                 }
-                this.cashier_flo_id = myFloID;
+                this.flo_id = myFloID;
                 this.user_role = "CASHIER";
             },
             couriers: function Courier(courier_details={}) {
@@ -10194,8 +10197,18 @@
                         this[key] = obj;
                     }
                 }
-                this.courier_guy_flo_id = myFloID;
+                this.flo_id = myFloID;
                 this.user_role = "COURIER";
+            },
+            system_managers: function(manager_details) {
+                for (const key in manager_details) {
+                    if (manager_details.hasOwnProperty(key)) {
+                        const obj = manager_details[key];
+                        this[key] = obj;
+                    }
+                }
+                this.flo_id = myFloID;
+                this.user_role = "MANAGER";
             },
         },
     }
@@ -10209,18 +10222,33 @@
             for (const key in data) {
                 if (data.hasOwnProperty(key)) {
                     const obj = data[key];
-                    this[key] = obj;
+                    if ((typeof obj === "string" && obj.length>0)
+                    || (typeof obj === "number" && obj>0)) {
+                        this[key] = obj;
+                    } else {
+                        showMessage("Invalid product property.");
+                        throw new Error("Error: Product object creation failed.");
+                    }
                 }
             }
+            this.product_flo_id = floCrypto.generateNewID().floID;
             this.product_type = "PHYSICAL";
         },    
         digital_products: function() {
             for (const key in data) {
                 if (data.hasOwnProperty(key)) {
                     const obj = data[key];
-                    this[key] = obj;
+                    if ((typeof obj === "string" && obj.length>0)
+                    || (typeof obj === "number" && obj>0))
+                     {
+                        this[key] = obj;
+                    } else {
+                        showMessage("Invalid product property.");
+                        throw new Error("Error: Product object creation failed.");
+                    }
                 }
             }
+            this.product_flo_id = floCrypto.generateNewID().floID;
             this.product_type = "DIGITAL";
         },
     }
@@ -10230,19 +10258,49 @@
 <script>
     ecommerce.users.user_types.sellers.prototype = {
         add_new_product: function(product_details) {
-            let productClass = null;
-            if(product_details.product_type==="PHYSICAL") {
-                productClass = "physical_products";
-            } else if(product_details.product_type==="DIGITAL") {
-                productClass = "digital_products";
-            } else return false;
-            // Generate a product object
-            const nayaProduct = new ecommerce.products[productClass](product_details);
-            nayaProduct.seller_flo_id = myFloID;
-            nayaProduct.datetime = + new Date();
-            nayaProduct.onSale = false;
-            compactIDB.addData('sellerProducts', nayaProduct);
-            return nayaProduct;
+            try {
+                let productClass = null;
+                if(product_details.product_type==="PHYSICAL") {
+                    productClass = "physical_products";
+                } else if(product_details.product_type==="DIGITAL") {
+                    productClass = "digital_products";
+                } else return false;
+                // Generate a product object
+                const nayaProduct = new ecommerce.products[productClass](product_details);
+                nayaProduct.seller_flo_id = ecommerce.loggedInUser.user_info.flo_id||myFloID;
+                nayaProduct.datetime = + new Date();
+                nayaProduct.onSale = false;
+                
+                // Create a copy of above object but with only constant values
+                nayaProductConstants = {
+                    product_flo_id: nayaProduct.product_flo_id,
+                    product_type: nayaProduct.product_type,
+                    seller_flo_id: nayaProduct.seller_flo_id,
+                    product: nayaProduct.product,
+                    product_category: nayaProduct.product_category,
+                    selling_price: nayaProduct.selling_price,
+                    delivery_from: nayaProduct.delivery_from
+                }
+                
+                nayaProduct.seller_product_certificate={
+                    signer_public_key: myPubKey,
+                    signature: floCrypto.signData(JSON.stringify(nayaProductConstants), myPrivKey),
+                }
+
+                const ROOT_OBJECT = JSON.parse(JSON.stringify(floGlobals.appObjects[ecommerce.master_configurations.SUBJECT]));
+                
+                ROOT_OBJECT[ecommerce.master_configurations.CITY]["Products"][nayaProduct.seller_flo_id]=nayaProduct;
+
+                //floCloudAPI.updateObjectData(floGlobals.appObjects[ecommerce.master_configurations.SUBJECT], ROOT_OBJECT, ecommerce.master_configurations.SUBJECT, { receiverID: floGlobals.adminID });
+
+                floCloudAPI.sendGeneralData(ROOT_OBJECT, ecommerce.master_configurations.DATA_TYPE, { receiverID: floGlobals.adminID, senderIDs: [myFloID] })
+
+                showMessage("Product added into the cloud successfully.", "SUCCESS");
+
+                return true;
+            } catch (error) {
+                throw new Error(error);
+            }
         }, 
         update_product_status: function(old_product_details, new_product_details) {
             const object_values = Object.keys(obj1);
@@ -10251,9 +10309,9 @@
                     obj1[i] = product_details[i];
                 }
             }
-            this.list_product_for_sale();    
+            this.list_products_to_sell();    
         },
-        list_product_for_sale: async function() {
+        list_products_to_sell: async function() {
             const myProducts = await compactIDB.readAllData('sellerProducts');
             const mySellingProducts = myProducts.filter(f=>(f.onSale===True && f.items_available>0));
             console.table(mySellingProducts);
@@ -10318,8 +10376,12 @@
                     shopping_details: this.buy_list,
                     total_shopping_price: this.total_buying_price,
                     date_of_purchase: + new Date(),
-                    location: 'Ranchi',
+                    location: localStorage.getItem("FloECommerceUserAddress"),
                 }
+
+                // Generate Cashier UPI for payment
+                const cashier = randomNoRepeats(Object.keys(ecommerce.master_configurations.cashiers))();
+                final_buy_list.cashier = cashier;
                 final_buy_list.buyer_signature = floCrypto.signData(JSON.stringify(final_buy_list), myPrivKey);
                 
                 // Send buy info to server
@@ -10330,19 +10392,9 @@
 
                 this.reset_bucket_list();
 
-                // Generate Cashier UPI for payment
-
             } catch (error) {
                 throw new Error(error);
             }
-        },
-        build_orders_object: function(cityname='') {
-            Orders = {};
-            Orders.city = {};
-            Orders.city[cityname] = {};
-            Orders.city[cityname].buy_orders = [];
-            Orders.city[cityname].sell_orders = [];
-            return Orders;
         },
         reset_bucket_list: function() {
             this.total_buying_price = 0;
@@ -10350,14 +10402,14 @@
         },
         set_delivery_receiving_address: function() {
             if (typeof(Storage) == "undefined") {
-                system_message('LocalStorage not supported.');
+                showMessage('LocalStorage not supported.');
                 throw new Error('LocalStorage not supported.');
             }
             let FloECommerceUserAddress = localStorage.getItem("FloECommerceUserAddress");
             if (FloECommerceUserAddress===null) {
                 FloECommerceUserAddress = prompt("Please enter your local address. We will fetch local services near you.");
                 if(typeof FloECommerceUserAddress!=="string" && FloECommerceUserAddress.length<1) {
-                    system_message('Invalid Address. Please refresh to enter address again.');
+                    showMessage('Invalid Address. Please refresh to enter address again.');
                     return;
                 } 
                 localStorage.setItem("FloECommerceUserAddress", FloECommerceUserAddress);
@@ -10366,6 +10418,38 @@
         reset_delivery_receiving_address: function(new_addr='') {
             if(typeof new_addr==='string' && new_addr.length>0) 
                 localStorage.setItem("FloECommerceUserAddress", new_addr);
+        },
+    }
+</script>
+
+<!-- Managers functions -->
+<script>
+    ecommerce.users.user_types.system_managers.prototype = {
+        create_new_city_ecommerce: function(cityname='') {
+            
+            if(typeof cityname!=="string" || cityname.length<2) {
+                showMessage('Error: Please provide a city name.', 'error');
+                return false;
+            }
+
+            const flo_ecommerce = {}; 
+            flo_ecommerce[cityname] = {};
+            
+            flo_ecommerce[cityname].Orders = {};
+            flo_ecommerce[cityname].Orders.buy_orders = {};
+            flo_ecommerce[cityname].Orders.sell_orders = {};
+            
+            flo_ecommerce[cityname].Products = {};
+            
+            flo_ecommerce[cityname].Messages = {};
+            flo_ecommerce[cityname].Messages["buyer_messages"] = {}
+            flo_ecommerce[cityname].Messages["seller_messages"] = {}
+            flo_ecommerce[cityname].Messages["cashier_messages"] = {}
+            flo_ecommerce[cityname].Messages["delivery_messages"] = {}
+            flo_ecommerce[cityname].Messages["manager_messages"] = {}
+            
+            floCloudAPI.resetObjectData(flo_ecommerce, ecommerce.master_configurations.SUBJECT,
+                    { receiverID: floGlobals.adminID });  
         },
     }
 </script>
