@@ -9937,66 +9937,96 @@
         
         parse_flo_comments: async function() {
                 text = `masterFLOPubKey=03EA5E2CAB18DA585400D6EC569438D415FAF200528E05D0E2B9BEAA2B5C3DCA90
-                #!#SUBJECT=TEST_ECOMMERCE_4
-                #!#DATA_TYPE=EC4
+                #!#SUBJECT=TEST_ECOMMERCE_5
+                #!#DATA_TYPE=EC5
                 #!#CITY=Ranchi
-                #!#product_categories = Electronics,Clothes & Accessories,Home Appliances
+                #!#product_categories=Electronics,Clothes & Accessories,Home Appliances, Food
                 #!#cashiers=
                 {
                     "FByrY4vc1NRfbkqAqABtUyhhNzMZsKUjqr": {
                         "upi_id": "johnDoe@upi",
-                        "approved_by": "RE13EurYPSUUn4sGujJL64nKbSwJwqhc8BxTU9RzWzZrLwT2jXas",
-                        "certificate": "3044022026ce8c16420bb4f0f24d0aafccb7a6fb1ac2154b2d77d9304afde7044fbaaa9b02206e6b39e6af181c3d919a79d3569cf946dee444e2bf0b5519b1d07f97b1174d47"
+                        "approved_by": "F72fAV6aG8JrzR3N9F43vBE59q1FqWhBAp",
+                        "cashing_permission": true,
+                        "certificate": "3045022100811557f01a64600145241c5c9aa79ca10807735eab0dcc44815767f021ab8a390220604a377083c35d5c547e14f180393e6a27e117fb947096bc040e11b7ab86fa6b"
                     },
                     "FHU7dfBVDLZwp3fLRJ5cr7nEABBeeU9Z4T": {
                         "upi_id": "janeDoe@upi",
-                        "approved_by": "RE13EurYPSUUn4sGujJL64nKbSwJwqhc8BxTU9RzWzZrLwT2jXas",
-                        "certificate": "3046022100d26d9aaf23a9f2d8679663abb251d4b990cf366297f6ce78b3e5f28ede3ba0a9022100ef7f826fecec82adebb80527c04b338b691b8eb1c38bfaf6417bc3515cc0edfb"
+                        "approved_by": "F72fAV6aG8JrzR3N9F43vBE59q1FqWhBAp",
+                        "cashing_permission": true,
+                        "certificate": "3045022100dc79c2af7caade3fd42077700070e20962f50e9d22db5ec4028eb6e2121f16e402203df6a8b3d4fb1a7b8386a47758d8e90b27ed13ba8b7cc58ddd0cdbae27772860"
                     }
                 }
-                #!#sellers_list= { 
+                #!#sellers_list={
                     "FGtPEBu2NFFYkqFrA9NDBJJLpVhyuPubDj":{
                         "seller_id": "FGtPEBu2NFFYkqFrA9NDBJJLpVhyuPubDj",
-                        "category": "Electronics",
-                        "approved_by": "RE13EurYPSUUn4sGujJL64nKbSwJwqhc8BxTU9RzWzZrLwT2jXas",
-                        "location": "Yamaha Service Centre, Shail Yamaha, Argora Housing Colony, Argora, Ranchi, Jharkhand",
-                        "certificate": "3045022100f9afd666d55fb0d6b3c4f5d5e0672c9ec1a26eb08703a38ff8d5c8b08c0b8cd502205582e27980796ce5d29aeeb5ab9282ea1d8e412ee0f6b0af7ccb9dcdfd9e0224"
+                        "approved_by": "F72fAV6aG8JrzR3N9F43vBE59q1FqWhBAp",
+                        "selling_permission": true,
+                        "certificate": "304502203746508b189433d7e0bc0a8b099ea9f42b2923b07c4b265d0cea91d631eeef27022100cf6a95ba2b53f01fc989a9151bd2642b938b6954fd2154caa227ddc47ad39c0e"
                     },
-                    "FGtPEBu2NFFYkqFrA9NDBJJLpVhyuPubDj": {
-                        "seller_id": "FGtPEBu2NFFYkqFrA9NDBJJLpVhyuPubDj",
-                        "category": "Clothes & Accessories",
-                        "approved_by": "RE13EurYPSUUn4sGujJL64nKbSwJwqhc8BxTU9RzWzZrLwT2jXas",
-                        "location": "Head Office: JK Street Daladili Chowk Ratu, City Office: JK News Pipra Toli Argora Road Ranchi, Ranchi, Jharkhand 834002",
-                        "certificate": "304402203ee790bc46ca28dd17a540c33031053d061881617f0fea38039e8e0cf1954e6c02202d1bbb1630b633c6a692be914552e87998b292249c9f179ced508ad3a81a692a"
-                    },
-                    "FGtPEBu2NFFYkqFrA9NDBJJLpVhyuPubDj": {
-                        "seller_id": "FGtPEBu2NFFYkqFrA9NDBJJLpVhyuPubDj",
-                        "category": "Home Appliances",
-                        "approved_by": "RE13EurYPSUUn4sGujJL64nKbSwJwqhc8BxTU9RzWzZrLwT2jXas",
-                        "location": "Argora Housing Colony, Argora, Ranchi, Jharkhand 834002",
-                        "certificate": "304402203f8748dc073fe8fa3ae7244ce6b094fc50558c1652aa7f42ab5ec28bcac2261e02205c0738accb31251c8250af9a8d53476b66fc1f072f19eda50fec6a05a6349e59"
-                    },
-                    "FM1NzncALbWCcBVF5zbgzSmUbwQgW7tUfv": {
+                   "FM1NzncALbWCcBVF5zbgzSmUbwQgW7tUfv":{    
                         "seller_id": "FM1NzncALbWCcBVF5zbgzSmUbwQgW7tUfv",
+                        "approved_by": "F72fAV6aG8JrzR3N9F43vBE59q1FqWhBAp",
+                        "selling_permission": true,
+                        "certificate": "304402204dc159e6baf407d4a6b41ea399e79efe848b6a35a022a7a5e5131608ae76b3b4022018989219d3689b189bf3b6ae5a9efd516186c90c2ee2e891ca67e03d8d10fdf1"
+                    }
+                }
+                #!#products_list= { 
+                    "F8GCr1i46LgPoLrSssUAqhyFvo1uEGGWYp":{
+                        "seller_id": "FGtPEBu2NFFYkqFrA9NDBJJLpVhyuPubDj",
+                        "productId": "F8GCr1i46LgPoLrSssUAqhyFvo1uEGGWYp",
+                        "product": "MobilePhone",
+                        "category": "Electronics",
+                        "approved_by": "F72fAV6aG8JrzR3N9F43vBE59q1FqWhBAp",
+                        "selling_permission": true,
+                        "product_location": "Yamaha Service Centre, Shail Yamaha, Argora Housing Colony, Argora, Ranchi, Jharkhand",
+                        "certificate": "3046022100e9476420aa4b590d90f12aa15c3f76e32ec5198db6d845d79495f177e82dcb77022100eee6ae073fa5c014ad87607c9f027cba6fa60bc0d83872002c6b2a4ed6aba33f"
+                    },
+                    "F7HuGrYaU4658ZtkJPKhrbU4N5SySsH6ZA": {
+                        "seller_id": "FGtPEBu2NFFYkqFrA9NDBJJLpVhyuPubDj",
+                        "productId": "F7HuGrYaU4658ZtkJPKhrbU4N5SySsH6ZA",
+                        "product": "Jeans",
                         "category": "Clothes & Accessories",
-                        "approved_by": "RE13EurYPSUUn4sGujJL64nKbSwJwqhc8BxTU9RzWzZrLwT2jXas",
-                        "location": "Circular Rd, Lalpur, Ranchi, Jharkhand 834001",
-                        "certificate": "304502205af1b49c4cd1ee56ab49369dce632e1be5fed08c97d2ce18d598394ba4d7ec48022100dac3e84ece805e202e93b1c3a031bfb348827dd03de50cd8baa881c6da2a0f3c"
+                        "approved_by": "F72fAV6aG8JrzR3N9F43vBE59q1FqWhBAp",
+                        "selling_permission": true,
+                        "product_location": "Head Office: JK Street Daladili Chowk Ratu, City Office: JK News Pipra Toli Argora Road Ranchi, Ranchi, Jharkhand 834002",
+                        "certificate": "3046022100afaded34f53369c7580932981fe2cb1039707cc26c0f66ff8508102d30f028ab022100f7175cfde4de10570863c075f00d230a0c9c2104f5a37ef9fc258d571cbbf8a6"
+                    },
+                    "F5tGoSPyg3nKNnJiAsGX9KHmLQvr798pVm": {
+                        "seller_id": "FGtPEBu2NFFYkqFrA9NDBJJLpVhyuPubDj",
+                        "productId": "F5tGoSPyg3nKNnJiAsGX9KHmLQvr798pVm",
+                        "product": "Fan",
+                        "category": "Home Appliances",
+                        "approved_by": "F72fAV6aG8JrzR3N9F43vBE59q1FqWhBAp",
+                        "selling_permission": true,
+                        "product_location": "Argora Housing Colony, Argora, Ranchi, Jharkhand 834002",
+                        "certificate": "304502210090f1fc89c7c62051c5f3c0f522dc14ae28c7b04a1b9137d6990f4bc30a8952a202203e975d002f433efed2ffc5967d407eb2c37c7f98dc4b246b4647ef663e160c0f"
+                    },
+                    "FEjM9g3kHtVYPqcLtfNd4Y93VoAAirj1PV": {
+                        "seller_id": "FM1NzncALbWCcBVF5zbgzSmUbwQgW7tUfv",
+                        "productId": "FEjM9g3kHtVYPqcLtfNd4Y93VoAAirj1PV",
+                        "product": "Jacket",
+                        "category": "Clothes & Accessories",
+                        "approved_by": "F72fAV6aG8JrzR3N9F43vBE59q1FqWhBAp",
+                        "selling_permission": true,
+                        "product_location": "Circular Rd, Lalpur, Ranchi, Jharkhand 834001",
+                        "certificate": "3045022100d884d7d8644d6dbc49dcf73b51f146aa182b407e1dce15114d3411d79374cbc602207df3639ccf7c710edf7165cd43abae6d10abd555f4fce39f5c3e3f704dfa0b60"
                     }
                 }
                 #!#couriers_list={
                     "FToFgkZHhLfkQqLQUsjBZxKVWyrEMsC4hf":
                     {
                         "courier_guy_flo_id": "FToFgkZHhLfkQqLQUsjBZxKVWyrEMsC4hf",
-                        "location": "Baralal St, Upper Bazar, Ranchi, Jharkhand 834001",
-                        "approved_by": "RE13EurYPSUUn4sGujJL64nKbSwJwqhc8BxTU9RzWzZrLwT2jXas",
-                        "certificate": "304602210083b770973892a4eaa41d22d893c6d57d20ec02930ba752d4c6a90fdaa92479070221008476dc34dafe462214e687ca84b93a3da891c8d5282218c6c5372b0a1629e17d"
+                        "courierAddress": "Baralal St, Upper Bazar, Ranchi, Jharkhand 834001",
+                        "approved_by": "F72fAV6aG8JrzR3N9F43vBE59q1FqWhBAp",
+                        "courier_permission": true,
+                        "certificate": "3046022100921deafde5d5b18dda89f6ba22018672fcbb74fa63b67dc544edeaed8f5541ab0221008cc38f970cc436797914651af78fac7734919429a4cdff603f6b8ab864eefe16"
                     },
                     "FPMpZJY1ca9pru3mT8KUCHCaauBe8UNQ3a": {
                         "courier_guy_flo_id": "FPMpZJY1ca9pru3mT8KUCHCaauBe8UNQ3a",
-                        "location": "Ground Floor A.R.K Complex Lalpur Chowk Beside Lalpur Thana, Hazaribag Rd, Income Tax Colony, Lalpur, Ranchi, Jharkhand 834001",
-                        "approved_by": "RE13EurYPSUUn4sGujJL64nKbSwJwqhc8BxTU9RzWzZrLwT2jXas",
-                        "certificate": "3045022100d89826c28465bfd8b6d97b3cc5e024634a483ebc67a5514ad68cb7fe83e3a90d02207f200a25a295e77b2f7eff34d7d0e28d94711c77ad30011c7bde52d69bac49c7"
+                        "courierAddress": "Ground Floor A.R.K Complex Lalpur Chowk Beside Lalpur Thana, Hazaribag Rd, Income Tax Colony, Lalpur, Ranchi, Jharkhand 834001",
+                        "approved_by": "F72fAV6aG8JrzR3N9F43vBE59q1FqWhBAp",
+                        "courier_permission": true,
+                        "certificate": "3044022000dec454231679735bd61c006de2a4ff6be04157472ebb042d078ad41722147c022014d3a95ae029ac5e6a2b4d038c482237f176edac6fe2c36063639b4cea26b5e5"
                     }
                 }`
                 text = removeWhiteSpaces(text);
@@ -10130,7 +10160,7 @@
                 const seller_details = {};
                 seller_details.approved_by = ecommerce.master_configurations.sellers_list[myFloID].approved_by;
                 seller_details.certificate = ecommerce.master_configurations.sellers_list[myFloID].certificate;
-                seller_details.location = ecommerce.master_configurations.sellers_list[myFloID].location;
+                seller_details.selling_permission = ecommerce.master_configurations.sellers_list[myFloID].selling_permission;
                 User.prototype.user_info = new ecommerce.users.user_types.sellers(seller_details);
             } else if(Object.keys(ecommerce.master_configurations.cashiers)
             .includes(user_details.flo_id)) {
@@ -10138,12 +10168,14 @@
                 cashier_details.upi_id = ecommerce.master_configurations.cashiers[myFloID].upi_id;
                 cashier_details.approved_by = ecommerce.master_configurations.cashiers[myFloID].approved_by;
                 cashier_details.certificate = ecommerce.master_configurations.cashiers[myFloID].certificate;
+                cashier_details.cashing_permission = ecommerce.master_configurations.cashiers[myFloID].cashing_permission;
                 User.prototype.user_info = new ecommerce.users.user_types.cashiers(user_details);
             } else if(Object.keys(ecommerce.master_configurations.couriers_list)
             .includes(user_details.flo_id)) {
                 const courier_details = {};
                 courier_details.location = ecommerce.master_configurations.couriers_list[myFloID].location;
                 courier_details.approved_by = ecommerce.master_configurations.couriers_list[myFloID].approved_by;
+                courier_details.courier_permission = ecommerce.master_configurations.couriers_list[myFloID].courier_permission;
                 courier_details.certificate = ecommerce.master_configurations.couriers_list[myFloID].certificate;
                 User.prototype.user_info = new ecommerce.users.user_types.couriers(user_details);
             } else if(floGlobals.subAdmins.includes(user_details.flo_id)) {
@@ -10234,7 +10266,7 @@
             this.product_flo_id = floCrypto.generateNewID().floID;
             this.product_type = "PHYSICAL";
         },    
-        digital_products: function() {
+        digital_products: function(data) {
             for (const key in data) {
                 if (data.hasOwnProperty(key)) {
                     const obj = data[key];
@@ -10265,33 +10297,22 @@
                 } else if(product_details.product_type==="DIGITAL") {
                     productClass = "digital_products";
                 } else return false;
+
                 // Generate a product object
                 const nayaProduct = new ecommerce.products[productClass](product_details);
                 nayaProduct.seller_flo_id = ecommerce.loggedInUser.user_info.flo_id||myFloID;
                 nayaProduct.datetime = + new Date();
-                nayaProduct.onSale = false;
-                
-                // Create a copy of above object but with only constant values
-                nayaProductConstants = {
-                    product_flo_id: nayaProduct.product_flo_id,
-                    product_type: nayaProduct.product_type,
-                    seller_flo_id: nayaProduct.seller_flo_id,
-                    product: nayaProduct.product,
-                    product_category: nayaProduct.product_category,
-                    selling_price: nayaProduct.selling_price,
-                    delivery_from: nayaProduct.delivery_from
-                }
+                nayaProduct.onSale = true;
+                nayaProduct.hash = Crypto.SHA256(JSON.stringify(nayaProduct));
                 
                 nayaProduct.seller_product_certificate={
-                    signer_public_key: myPubKey,
-                    signature: floCrypto.signData(JSON.stringify(nayaProductConstants), myPrivKey),
+                    seller_public_key: myPubKey,
+                    seller_signature: floCrypto.signData(JSON.stringify(nayaProduct), myPrivKey),
                 }
 
                 const ROOT_OBJECT = JSON.parse(JSON.stringify(floGlobals.appObjects[ecommerce.master_configurations.SUBJECT]));
                 
                 ROOT_OBJECT[ecommerce.master_configurations.CITY]["Products"][nayaProduct.seller_flo_id]=nayaProduct;
-
-                //floCloudAPI.updateObjectData(floGlobals.appObjects[ecommerce.master_configurations.SUBJECT], ROOT_OBJECT, ecommerce.master_configurations.SUBJECT, { receiverID: floGlobals.adminID });
 
                 floCloudAPI.sendGeneralData(ROOT_OBJECT, ecommerce.master_configurations.DATA_TYPE, { receiverID: floGlobals.adminID, senderIDs: [myFloID] })
 
@@ -10304,6 +10325,9 @@
         }, 
         update_product_status: function(old_product_details, new_product_details) {
             const object_values = Object.keys(obj1);
+            
+            // SECURITY_CHECK: Test if product_details.product is certified by Admin
+
             for(i in product_details) {
                 if(object_values.includes(i)) {
                     obj1[i] = product_details[i];
@@ -10313,7 +10337,7 @@
         },
         list_products_to_sell: async function() {
             const myProducts = await compactIDB.readAllData('sellerProducts');
-            const mySellingProducts = myProducts.filter(f=>(f.onSale===True && f.items_available>0));
+            const mySellingProducts = myProducts.filter(f=>(f.onSale===True && f.stock_available>0));
             console.table(mySellingProducts);
         }
     }
@@ -10450,6 +10474,58 @@
             
             floCloudAPI.resetObjectData(flo_ecommerce, ecommerce.master_configurations.SUBJECT,
                     { receiverID: floGlobals.adminID });  
+        },
+        get_general_data: function() {
+            const new_generalData = floGlobals.generalData[JSON.stringify({ application: floGlobals.application, type: ecommerce.master_configurations.DATA_TYPE })][0];
+            
+            for (const new_data in new_generalData.message) {
+                if (!new_generalData.message.hasOwnProperty(new_data)) continue;
+                if(!Object.keys(ecommerce.master_configurations.sellers_list).includes(new_generalData.sender)) continue;
+
+                let city_data = new_generalData.message[ecommerce.master_configurations.CITY];
+            
+                for (const requesting_seller_id in city_data.Products) {
+                    if (city_data.Products.hasOwnProperty(requesting_seller_id)) {
+                        const new_product_data = city_data.Products[requesting_seller_id];
+                        console.log(new_product_data);
+                        let seller_id = floCrypto.getFloIDfromPubkeyHex(new_product_data.seller_product_certificate.seller_public_key);
+                        if(seller_id===requesting_seller_id) {
+                            if(Object.keys(ecommerce.master_configurations.sellers_list).includes(seller_id)) {
+                                
+                                const product_general_info_object = {};
+                                
+                                for (const key in new_product_data) {
+                                    if (new_product_data.hasOwnProperty(key)) {
+                                        const obj = new_product_data[key];
+                                        if (typeof obj !== "object") {
+                                            product_general_info_object[key] = obj;
+                                        }
+                                    }
+                                }
+
+                                if(floCrypto.verifySign(JSON.stringify(product_general_info_object), new_product_data.seller_product_certificate.seller_signature, new_product_data.seller_product_certificate.seller_public_key)) {
+                                    console.log('verify success. BUILD UI FOR ADMIN TO APPROVE ITEM');
+                                    
+                                } else {
+                                    console.log("verify failed");
+                                }  
+                            }
+                        }
+                    }
+                }
+            
+            }
+        },
+        approve_seller_item: function(seller_item) {
+            // Build a object from seller_item containing only constant values
+            // Exclude values like price, quantity etc that are tentative to change
+            // Maybe reset the Products object to 
+            // {
+            //     "product_static_information": {}, // This is what admin interest in - name, category, seller, flo id
+            //     "product_dynamic_information": {}, // Price, Quantity
+            //     "Seller_signature": {},
+            //     "Admin_signature": {}
+            // }
         },
     }
 </script>
