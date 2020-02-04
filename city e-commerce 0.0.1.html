@@ -10250,38 +10250,46 @@
 <!-- Products -->
 <script>
     ecommerce.products = {
-        physical_products: function(data) {
+        static_properties: ["product_type", "seller_flo_id", "product_category", "product_flo_id"],
+        build_product_object: function(data) {
+            
+            this.product_info = {};
+            this.product_info.product_static_information = {};
+            this.product_info.product_dynamic_information = {};
+
             for (const key in data) {
                 if (data.hasOwnProperty(key)) {
+                    
                     const obj = data[key];
+                    
+                    if(typeof obj==="object") continue;
+                        
                     if ((typeof obj === "string" && obj.length>0)
                     || (typeof obj === "number" && obj>0)) {
-                        this[key] = obj;
+
+                        if(ecommerce.products.static_properties.includes(key)) {
+                            this.product_info.product_static_information[key] = obj;
+                        } else {
+                            this.product_info.product_dynamic_information[key] = obj;
+                        }
                     } else {
                         showMessage("Invalid product property.");
                         throw new Error("Error: Product object creation failed.");
                     }
                 }
             }
-            this.product_flo_id = floCrypto.generateNewID().floID;
-            this.product_type = "PHYSICAL";
+            this.product_info.product_static_information.product_flo_id = floCrypto.generateNewID().floID;
+            this.product_info.product_static_information.seller_flo_id = ecommerce.loggedInUser.user_info.flo_id||myFloID;
+            this.product_info.product_dynamic_information.lastUpdated = + new Date();
+            this.product_info.product_dynamic_information.onSale = true;
+        },
+        physical_products: function(product_details) {
+            this.new_physical_product = new ecommerce.products.build_product_object(product_details);
+            this.new_physical_product.product_info.product_static_information.product_type = "PHYSICAL";
         },    
-        digital_products: function(data) {
-            for (const key in data) {
-                if (data.hasOwnProperty(key)) {
-                    const obj = data[key];
-                    if ((typeof obj === "string" && obj.length>0)
-                    || (typeof obj === "number" && obj>0))
-                     {
-                        this[key] = obj;
-                    } else {
-                        showMessage("Invalid product property.");
-                        throw new Error("Error: Product object creation failed.");
-                    }
-                }
-            }
-            this.product_flo_id = floCrypto.generateNewID().floID;
-            this.product_type = "DIGITAL";
+        digital_products: function(product_details) {
+            this.new_digital_product = new ecommerce.products.build_product_object(product_details);
+            this.new_digital_product.product_info.product_static_information.product_type = "DIGITAL";
         },
     }
 </script>
@@ -10300,19 +10308,15 @@
 
                 // Generate a product object
                 const nayaProduct = new ecommerce.products[productClass](product_details);
-                nayaProduct.seller_flo_id = ecommerce.loggedInUser.user_info.flo_id||myFloID;
-                nayaProduct.datetime = + new Date();
-                nayaProduct.onSale = true;
-                nayaProduct.hash = Crypto.SHA256(JSON.stringify(nayaProduct));
-                
-                nayaProduct.seller_product_certificate={
+            
+                nayaProduct.new_digital_product.seller_product_certificate={
                     seller_public_key: myPubKey,
-                    seller_signature: floCrypto.signData(JSON.stringify(nayaProduct), myPrivKey),
+                    seller_signature: floCrypto.signData(JSON.stringify(nayaProduct.new_digital_product.product_info), myPrivKey),
                 }
 
                 const ROOT_OBJECT = JSON.parse(JSON.stringify(floGlobals.appObjects[ecommerce.master_configurations.SUBJECT]));
                 
-                ROOT_OBJECT[ecommerce.master_configurations.CITY]["Products"][nayaProduct.seller_flo_id]=nayaProduct;
+                ROOT_OBJECT[ecommerce.master_configurations.CITY]["Products"][myFloID]=nayaProduct.new_digital_product;
 
                 floCloudAPI.sendGeneralData(ROOT_OBJECT, ecommerce.master_configurations.DATA_TYPE, { receiverID: floGlobals.adminID, senderIDs: [myFloID] })
 
@@ -10336,9 +10340,9 @@
             this.list_products_to_sell();    
         },
         list_products_to_sell: async function() {
-            const myProducts = await compactIDB.readAllData('sellerProducts');
-            const mySellingProducts = myProducts.filter(f=>(f.onSale===True && f.stock_available>0));
-            console.table(mySellingProducts);
+            // const myProducts = await compactIDB.readAllData('sellerProducts');
+            // const mySellingProducts = myProducts.filter(f=>(f.onSale===True && f.stock_available>0));
+            // console.table(mySellingProducts);
         }
     }
 </script>
@@ -10449,6 +10453,7 @@
 <!-- Managers functions -->
 <script>
     ecommerce.users.user_types.system_managers.prototype = {
+        // Start ecommerce in a new city
         create_new_city_ecommerce: function(cityname='') {
             
             if(typeof cityname!=="string" || cityname.length<2) {
@@ -10475,35 +10480,26 @@
             floCloudAPI.resetObjectData(flo_ecommerce, ecommerce.master_configurations.SUBJECT,
                     { receiverID: floGlobals.adminID });  
         },
+        // Load ecommerce data relevent to an admin
         get_general_data: function() {
-            const new_generalData = floGlobals.generalData[JSON.stringify({ application: floGlobals.application, type: ecommerce.master_configurations.DATA_TYPE })][0];
+            const new_generalData = floGlobals.generalData[JSON.stringify({ application: floGlobals.application, type: ecommerce.master_configurations.DATA_TYPE })];
             
-            for (const new_data in new_generalData.message) {
-                if (!new_generalData.message.hasOwnProperty(new_data)) continue;
-                if(!Object.keys(ecommerce.master_configurations.sellers_list).includes(new_generalData.sender)) continue;
+            for (const new_data in new_generalData) {
+                if (!new_generalData.hasOwnProperty(new_data)) continue;
+                if(!Object.keys(ecommerce.master_configurations.sellers_list).includes(new_generalData[new_data].sender)) continue;
 
-                let city_data = new_generalData.message[ecommerce.master_configurations.CITY];
+                let city_data = new_generalData[new_data].message[ecommerce.master_configurations.CITY];
             
                 for (const requesting_seller_id in city_data.Products) {
                     if (city_data.Products.hasOwnProperty(requesting_seller_id)) {
                         const new_product_data = city_data.Products[requesting_seller_id];
-                        console.log(new_product_data);
                         let seller_id = floCrypto.getFloIDfromPubkeyHex(new_product_data.seller_product_certificate.seller_public_key);
                         if(seller_id===requesting_seller_id) {
                             if(Object.keys(ecommerce.master_configurations.sellers_list).includes(seller_id)) {
                                 
-                                const product_general_info_object = {};
-                                
-                                for (const key in new_product_data) {
-                                    if (new_product_data.hasOwnProperty(key)) {
-                                        const obj = new_product_data[key];
-                                        if (typeof obj !== "object") {
-                                            product_general_info_object[key] = obj;
-                                        }
-                                    }
-                                }
+                                if(typeof new_product_data.product_info !== "object") continue;
 
-                                if(floCrypto.verifySign(JSON.stringify(product_general_info_object), new_product_data.seller_product_certificate.seller_signature, new_product_data.seller_product_certificate.seller_public_key)) {
+                                if(floCrypto.verifySign(JSON.stringify(new_product_data.product_info), new_product_data.seller_product_certificate.seller_signature, new_product_data.seller_product_certificate.seller_public_key)) {
                                     console.log('verify success. BUILD UI FOR ADMIN TO APPROVE ITEM');
                                     
                                 } else {
@@ -10516,16 +10512,9 @@
             
             }
         },
+        // Approve only static values of a product
         approve_seller_item: function(seller_item) {
-            // Build a object from seller_item containing only constant values
-            // Exclude values like price, quantity etc that are tentative to change
-            // Maybe reset the Products object to 
-            // {
-            //     "product_static_information": {}, // This is what admin interest in - name, category, seller, flo id
-            //     "product_dynamic_information": {}, // Price, Quantity
-            //     "Seller_signature": {},
-            //     "Admin_signature": {}
-            // }
+            
         },
     }
 </script>
