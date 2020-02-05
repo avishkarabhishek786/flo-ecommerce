@@ -9937,8 +9937,13 @@
         
         parse_flo_comments: async function() {
                 text = `masterFLOPubKey=03EA5E2CAB18DA585400D6EC569438D415FAF200528E05D0E2B9BEAA2B5C3DCA90
-                #!#SUBJECT=TEST_ECOMMERCE_5
-                #!#DATA_TYPE=EC5
+                #!#SUBJECT=TEST_ECOMMERCE_7
+                #!#DATA_TYPE={
+                    "SELLING_PRODUCTS":"RANCHI_SELLING_PRODUCTS_7", 
+                    "BUY_ORDERS":"RANCHI_BUY_ORDERS_7", 
+                    "MESSAGES":"RANCHI_MESSAGES_7",
+                    "CASHIERS_DATA":"RANCHI_CASHIERS_DATA_7", 
+                    "COURIER_DATA":"RANCHI_COURIER_DATA_7"}
                 #!#CITY=Ranchi
                 #!#product_categories=Electronics,Clothes & Accessories,Home Appliances, Food
                 #!#cashiers=
@@ -9968,48 +9973,6 @@
                         "approved_by": "F72fAV6aG8JrzR3N9F43vBE59q1FqWhBAp",
                         "selling_permission": true,
                         "certificate": "304402204dc159e6baf407d4a6b41ea399e79efe848b6a35a022a7a5e5131608ae76b3b4022018989219d3689b189bf3b6ae5a9efd516186c90c2ee2e891ca67e03d8d10fdf1"
-                    }
-                }
-                #!#products_list= { 
-                    "F8GCr1i46LgPoLrSssUAqhyFvo1uEGGWYp":{
-                        "seller_id": "FGtPEBu2NFFYkqFrA9NDBJJLpVhyuPubDj",
-                        "productId": "F8GCr1i46LgPoLrSssUAqhyFvo1uEGGWYp",
-                        "product": "MobilePhone",
-                        "category": "Electronics",
-                        "approved_by": "F72fAV6aG8JrzR3N9F43vBE59q1FqWhBAp",
-                        "selling_permission": true,
-                        "product_location": "Yamaha Service Centre, Shail Yamaha, Argora Housing Colony, Argora, Ranchi, Jharkhand",
-                        "certificate": "3046022100e9476420aa4b590d90f12aa15c3f76e32ec5198db6d845d79495f177e82dcb77022100eee6ae073fa5c014ad87607c9f027cba6fa60bc0d83872002c6b2a4ed6aba33f"
-                    },
-                    "F7HuGrYaU4658ZtkJPKhrbU4N5SySsH6ZA": {
-                        "seller_id": "FGtPEBu2NFFYkqFrA9NDBJJLpVhyuPubDj",
-                        "productId": "F7HuGrYaU4658ZtkJPKhrbU4N5SySsH6ZA",
-                        "product": "Jeans",
-                        "category": "Clothes & Accessories",
-                        "approved_by": "F72fAV6aG8JrzR3N9F43vBE59q1FqWhBAp",
-                        "selling_permission": true,
-                        "product_location": "Head Office: JK Street Daladili Chowk Ratu, City Office: JK News Pipra Toli Argora Road Ranchi, Ranchi, Jharkhand 834002",
-                        "certificate": "3046022100afaded34f53369c7580932981fe2cb1039707cc26c0f66ff8508102d30f028ab022100f7175cfde4de10570863c075f00d230a0c9c2104f5a37ef9fc258d571cbbf8a6"
-                    },
-                    "F5tGoSPyg3nKNnJiAsGX9KHmLQvr798pVm": {
-                        "seller_id": "FGtPEBu2NFFYkqFrA9NDBJJLpVhyuPubDj",
-                        "productId": "F5tGoSPyg3nKNnJiAsGX9KHmLQvr798pVm",
-                        "product": "Fan",
-                        "category": "Home Appliances",
-                        "approved_by": "F72fAV6aG8JrzR3N9F43vBE59q1FqWhBAp",
-                        "selling_permission": true,
-                        "product_location": "Argora Housing Colony, Argora, Ranchi, Jharkhand 834002",
-                        "certificate": "304502210090f1fc89c7c62051c5f3c0f522dc14ae28c7b04a1b9137d6990f4bc30a8952a202203e975d002f433efed2ffc5967d407eb2c37c7f98dc4b246b4647ef663e160c0f"
-                    },
-                    "FEjM9g3kHtVYPqcLtfNd4Y93VoAAirj1PV": {
-                        "seller_id": "FM1NzncALbWCcBVF5zbgzSmUbwQgW7tUfv",
-                        "productId": "FEjM9g3kHtVYPqcLtfNd4Y93VoAAirj1PV",
-                        "product": "Jacket",
-                        "category": "Clothes & Accessories",
-                        "approved_by": "F72fAV6aG8JrzR3N9F43vBE59q1FqWhBAp",
-                        "selling_permission": true,
-                        "product_location": "Circular Rd, Lalpur, Ranchi, Jharkhand 834001",
-                        "certificate": "3045022100d884d7d8644d6dbc49dcf73b51f146aa182b407e1dce15114d3411d79374cbc602207df3639ccf7c710edf7165cd43abae6d10abd555f4fce39f5c3e3f704dfa0b60"
                     }
                 }
                 #!#couriers_list={
@@ -10123,15 +10086,23 @@
                 LIVE_USER.user_info.set_delivery_receiving_address();
             }
 
-            this.retrieveLatestContent();
+            await this.retrieveLatestContent();
+
+            ecommerce.products.create_approved_products_id_list();
 
         },
 
         retrieveLatestContent: async function (receiverID = floGlobals.adminID, senderIDs = floGlobals.subAdmins) {
             showMessage('Loading the latest content')
-            await floCloudAPI.requestObjectData(ecommerce.master_configurations.SUBJECT, { receiverID, senderIDs });
-            await floCloudAPI.requestGeneralData(ecommerce.master_configurations.DATA_TYPE);
-            console.log(floGlobals.appObjects[ecommerce.master_configurations.SUBJECT]);
+            const promises = [];
+            promises.push(floCloudAPI.requestObjectData(ecommerce.master_configurations.SUBJECT, { receiverID, senderIDs }));
+            for (const key in ecommerce.master_configurations.DATA_TYPE) {
+                if (ecommerce.master_configurations.DATA_TYPE.hasOwnProperty(key)) {
+                    const element = ecommerce.master_configurations.DATA_TYPE[key];
+                    promises.push(floCloudAPI.requestGeneralData(element));       
+                }
+            }
+            await Promise.all(promises);
         },
 
         logout: function () {
@@ -10265,7 +10236,8 @@
                     if(typeof obj==="object") continue;
                         
                     if ((typeof obj === "string" && obj.length>0)
-                    || (typeof obj === "number" && obj>0)) {
+                    || (typeof obj === "number" && obj>0)
+                    || typeof obj==="boolean") {
 
                         if(ecommerce.products.static_properties.includes(key)) {
                             this.product_info.product_static_information[key] = obj;
@@ -10291,6 +10263,27 @@
             this.new_digital_product = new ecommerce.products.build_product_object(product_details);
             this.new_digital_product.product_info.product_static_information.product_type = "DIGITAL";
         },
+
+        get_approved_products_id: function() {
+            return Object.values(floGlobals.appObjects[ecommerce.master_configurations.SUBJECT].Products)
+                        .reduce((t, c, i)=>[...Object.values(c)], [])
+                        .filter(f=>f.product_approved===true)
+                        .map(m=>m.product_flo_id);            
+        },
+
+        create_approved_products_id_list: function() {
+            return new Promise((resolve)=>{
+                resolve(ecommerce.products.get_approved_products_id())
+            }).then(approved_products=>{
+                Object.defineProperty(ecommerce, "approved_products",
+                {
+                    value: approved_products,
+                    writable: false,
+                    configurable: false,
+                    enumerable: true
+                });
+            })
+        },
     }
 </script>
 
@@ -10314,11 +10307,9 @@
                     seller_signature: floCrypto.signData(JSON.stringify(nayaProduct.new_digital_product.product_info), myPrivKey),
                 }
 
-                const ROOT_OBJECT = JSON.parse(JSON.stringify(floGlobals.appObjects[ecommerce.master_configurations.SUBJECT]));
-                
-                ROOT_OBJECT[ecommerce.master_configurations.CITY]["Products"][myFloID]=nayaProduct.new_digital_product;
-
-                floCloudAPI.sendGeneralData(ROOT_OBJECT, ecommerce.master_configurations.DATA_TYPE, { receiverID: floGlobals.adminID, senderIDs: [myFloID] })
+                const input_data = {};
+                input_data[nayaProduct.new_digital_product.product_info.product_static_information.product_flo_id]=nayaProduct.new_digital_product
+                floCloudAPI.sendGeneralData(input_data, ecommerce.master_configurations.DATA_TYPE.SELLING_PRODUCTS, { receiverID: floGlobals.adminID, senderIDs: [myFloID] })
 
                 showMessage("Product added into the cloud successfully.", "SUCCESS");
 
@@ -10413,7 +10404,7 @@
                 final_buy_list.buyer_signature = floCrypto.signData(JSON.stringify(final_buy_list), myPrivKey);
                 
                 // Send buy info to server
-                floCloudAPI.sendGeneralData(final_buy_list, this.DATA_TYPE, { receiverID: floGlobals.adminID, senderIDs: [myFloID] });
+                floCloudAPI.sendGeneralData(final_buy_list, this.DATA_TYPE.BUY_ORDERS, { receiverID: floGlobals.adminID, senderIDs: [myFloID] });
 
                 // Store info in local history
                 compactIDB.addData('my_orders_history', final_buy_list);
@@ -10464,44 +10455,52 @@
             const flo_ecommerce = {}; 
             flo_ecommerce[cityname] = {};
             
+            // Master configurations should come from here
+            flo_ecommerce[cityname].master_configurations = '';
+
             flo_ecommerce[cityname].Orders = {};
             flo_ecommerce[cityname].Orders.buy_orders = {};
-            flo_ecommerce[cityname].Orders.sell_orders = {};
+            
+            // Every approved product is for sale 
+            //flo_ecommerce[cityname].Orders.sell_orders = {};
             
             flo_ecommerce[cityname].Products = {};
             
-            flo_ecommerce[cityname].Messages = {};
-            flo_ecommerce[cityname].Messages["buyer_messages"] = {}
-            flo_ecommerce[cityname].Messages["seller_messages"] = {}
-            flo_ecommerce[cityname].Messages["cashier_messages"] = {}
-            flo_ecommerce[cityname].Messages["delivery_messages"] = {}
-            flo_ecommerce[cityname].Messages["manager_messages"] = {}
+            // Messages should be in general object
+            // flo_ecommerce[cityname].Messages = {};
+            // flo_ecommerce[cityname].Messages["buyer_messages"] = {}
+            // flo_ecommerce[cityname].Messages["seller_messages"] = {}
+            // flo_ecommerce[cityname].Messages["cashier_messages"] = {}
+            // flo_ecommerce[cityname].Messages["delivery_messages"] = {}
+            // flo_ecommerce[cityname].Messages["manager_messages"] = {}
             
             floCloudAPI.resetObjectData(flo_ecommerce, ecommerce.master_configurations.SUBJECT,
                     { receiverID: floGlobals.adminID });  
         },
         // Load ecommerce data relevent to an admin
         get_general_data: function() {
-            const new_generalData = floGlobals.generalData[JSON.stringify({ application: floGlobals.application, type: ecommerce.master_configurations.DATA_TYPE })];
+            const new_generalData = floGlobals.generalData[JSON.stringify({ application: floGlobals.application, type: ecommerce.master_configurations.DATA_TYPE.SELLING_PRODUCTS })];
             
-            for (const new_data in new_generalData) {
-                if (!new_generalData.hasOwnProperty(new_data)) continue;
-                if(!Object.keys(ecommerce.master_configurations.sellers_list).includes(new_generalData[new_data].sender)) continue;
+            for (const new_data of new_generalData) {
+                if(!Object.keys(ecommerce.master_configurations.sellers_list).includes(new_data.sender)) continue;
 
-                let city_data = new_generalData[new_data].message[ecommerce.master_configurations.CITY];
-            
-                for (const requesting_seller_id in city_data.Products) {
-                    if (city_data.Products.hasOwnProperty(requesting_seller_id)) {
-                        const new_product_data = city_data.Products[requesting_seller_id];
-                        let seller_id = floCrypto.getFloIDfromPubkeyHex(new_product_data.seller_product_certificate.seller_public_key);
-                        if(seller_id===requesting_seller_id) {
+                for (const product_id in new_data.message) {
+                    if (new_data.message.hasOwnProperty(product_id)) {
+                        const new_product_data = new_data.message[product_id];
+                        const seller_id = floCrypto.getFloIDfromPubkeyHex(new_product_data.seller_product_certificate.seller_public_key);
+                        if(seller_id===new_data.sender) {
                             if(Object.keys(ecommerce.master_configurations.sellers_list).includes(seller_id)) {
                                 
                                 if(typeof new_product_data.product_info !== "object") continue;
 
-                                if(floCrypto.verifySign(JSON.stringify(new_product_data.product_info), new_product_data.seller_product_certificate.seller_signature, new_product_data.seller_product_certificate.seller_public_key)) {
+                                if(floCrypto.verifySign(JSON.stringify(new_product_data.product_info), 
+                                    new_product_data.seller_product_certificate.seller_signature, 
+                                    new_product_data.seller_product_certificate.seller_public_key
+                                )) {
                                     console.log('verify success. BUILD UI FOR ADMIN TO APPROVE ITEM');
-                                    
+                                    const product_complete_info = {...new_product_data.product_info.product_dynamic_information, 
+                                        ...new_product_data.product_info.product_static_information};
+                                    this.build_product_approval_ui(product_complete_info);
                                 } else {
                                     console.log("verify failed");
                                 }  
@@ -10512,21 +10511,80 @@
             
             }
         },
+        build_product_approval_ui: function(ui_data) {
+
+            var t = ``;
+            t += `<ul>`;
+
+            for (const elem in ui_data) {
+                if (ui_data.hasOwnProperty(elem)) {
+                    if(0) t += ``;
+                    
+                    t += `<li>${elem}:${ui_data[elem]}</li>`;
+                }
+            }
+            t += `<li><button onclick="ecommerce.loggedInUser.user_info.approve_seller_item('${ui_data.product_flo_id}')">APPROVE</button></li>`;
+
+            t += `</ul><hr>`;
+            document.getElementById('renderList').insertAdjacentHTML( 'beforeend', t);
+        },
         // Approve only static values of a product
-        approve_seller_item: function(seller_item) {
-            
+        approve_seller_item: function(productId) {
+            try {
+                const new_generalData = floGlobals.generalData[JSON.stringify({ application: floGlobals.application, 
+                    type: ecommerce.master_configurations.DATA_TYPE.SELLING_PRODUCTS })];
+                const mapped = new_generalData.map(m=>m.message); 
+                const filtered = Object.values(mapped)
+                    .filter(key => Object.keys(key)[0]===productId);
+                const product_static_info = filtered[0][productId].product_info.product_static_information;
+                
+                const admin_approval_signature = {};
+
+                admin_approval_signature.product_flo_id = product_static_info.product_flo_id;
+                admin_approval_signature.seller_flo_id = product_static_info.seller_flo_id;
+                admin_approval_signature.date_of_approval = + new Date();
+                
+                admin_approval_signature.admin_static_product_signature = 
+                    floCrypto.signData(JSON.stringify(product_static_info), myPrivKey);
+
+                admin_approval_signature.admin_pubKey = myPubKey;
+                admin_approval_signature.product_approved = true;
+
+                console.log(admin_approval_signature);
+
+                const ROOT_OBJECT = JSON.parse(JSON.stringify(floGlobals.appObjects
+                    [ecommerce.master_configurations.SUBJECT]
+                    [ecommerce.master_configurations.CITY]));
+
+                if(typeof ROOT_OBJECT !== "object" || ROOT_OBJECT==null) {
+                    showMessage("Undefined Object. Approval process failed.", "ERROR");
+                    return false;
+                }
+
+                if(typeof ROOT_OBJECT.Products[product_static_info.seller_flo_id] !== "object"
+                || ROOT_OBJECT.Products[product_static_info.seller_flo_id] == null
+                || Object.keys(ROOT_OBJECT.Products[product_static_info.seller_flo_id]).length<1) {
+                    ROOT_OBJECT.Products[product_static_info.seller_flo_id] = {};
+                }
+
+                // Save the products under its seller object
+                ROOT_OBJECT.Products[product_static_info.seller_flo_id]
+                    [product_static_info.product_flo_id] = admin_approval_signature;
+
+                floCloudAPI.updateObjectData(floGlobals.appObjects[ecommerce.master_configurations.SUBJECT], 
+                    ROOT_OBJECT, ecommerce.master_configurations.SUBJECT, { receiverID: floGlobals.adminID });
+
+                ecommerce.actions.retrieveLatestContent();
+
+                showMessage(`Product ID ${product_static_info.product_flo_id} approved successfully.`);
+                return true;
+
+            } catch (error) {
+                throw new Error(error);
+            }
         },
     }
 </script>
 
-<script>
-    try {        
-
-        
-
-    } catch (error) {
-        throw new Error(error)
-    }   
-</script>
-
+<div id="renderList"></div>
 </html>
