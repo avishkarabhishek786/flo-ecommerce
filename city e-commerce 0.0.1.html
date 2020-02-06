@@ -9931,6 +9931,7 @@
         blocked_flo_ids: [],
         users: {},
         products: {},
+        ui: {},
     };
 
     ecommerce.actions = {
@@ -10078,7 +10079,7 @@
                 flo_id: myFloID,
             });
 
-            deepFreeze(ecommerce.loggedInUser.user_info);
+            //deepFreeze(ecommerce.loggedInUser.user_info);
 
             const LIVE_USER = ecommerce.loggedInUser;
             
@@ -10088,7 +10089,8 @@
 
             await this.retrieveLatestContent();
 
-            ecommerce.products.create_approved_products_id_list();
+            await ecommerce.products.create_approved_products_id_list();
+            await ecommerce.products.get_approved_products_list();
 
         },
 
@@ -10170,7 +10172,11 @@
                 }
                 this.flo_id = myFloID;   
                 this.user_role = "BUYER";
-                this.buy_list = [];
+                this.buy_list = []; // tentative to change
+                this.shopping_bill = { // final buy order
+                    shopping_list: [],
+                    total_amount: 0,
+                };
                 this.total_buying_price = 0;
             },
             sellers: function Seller(seller_details={}) {
@@ -10214,8 +10220,23 @@
                 this.user_role = "MANAGER";
             },
         },
+
     }
     
+    ecommerce.ui = {
+        BUYER: function() {
+            this.ui_data = {};
+        },
+        SELLER: function() {
+            this.ui_data = {};
+        },        
+        CASHIER: function() {
+            this.ui_data = {};
+        },        
+        COURIER: function() {
+            this.ui_data = {};
+        },
+    }
 </script>
 
 <!-- Products -->
@@ -10275,7 +10296,7 @@
             return new Promise((resolve)=>{
                 resolve(ecommerce.products.get_approved_products_id())
             }).then(approved_products=>{
-                Object.defineProperty(ecommerce, "approved_products",
+                Object.defineProperty(ecommerce, "approved_products_ids",
                 {
                     value: approved_products,
                     writable: false,
@@ -10283,6 +10304,53 @@
                     enumerable: true
                 });
             })
+        },
+
+        // Segregate admin approved products from general objects
+        get_approved_products_list: function() {
+            return new Promise((resolve, reject)=>{
+                try {
+
+                    const generalData = floGlobals.generalData[JSON.stringify(
+                        { application: floGlobals.application, 
+                          type: ecommerce.master_configurations.DATA_TYPE.SELLING_PRODUCTS 
+                        })];
+                        
+                    const certified_products = generalData
+                            .map(m=>m.message[Object.keys(m.message)[0]])
+                            .filter(f=>ecommerce.approved_products_ids
+                            .includes(f.product_info.product_static_information.product_flo_id));
+
+                    Object.defineProperty(ecommerce, "approved_products_list",
+                        {
+                            value: certified_products,
+                            writable: false,
+                            configurable: false,
+                            enumerable: true
+                        });
+
+                    resolve(ecommerce.approved_products_list);
+               
+                } catch (error) {
+                    reject(error);
+                }
+            });
+        },
+
+        get_product_details_by_floId: function(productFloId='') {
+            return new Promise((resolve, reject) => {
+                try {
+                    const filtered_product = ecommerce.approved_products_list
+                    .filter(f=>f.product_info.product_static_information.product_flo_id===productFloId);
+                
+                    if(filtered_product.length!==1) return reject("Product not found.");
+                    resolve(filtered_product);
+
+                } catch (error) {
+                    showMessage('Failed to get any product with id '+productFloId, 'ERROR');
+                    reject('Failed to get any product with id '+productFloId);
+                } 
+            });
         },
     }
 </script>
@@ -10342,29 +10410,27 @@
 <script>
     ecommerce.users.user_types.buyers.prototype = {
         add_item_to_bucket: function(item) {
-            const current_list = Object.values(this.buy_list)
-                                .map(m=>m.product_name);
-            if(current_list.includes(item.product_name)) {
-                for (i = 0; i < this.buy_list.length; i++) {
-                    if (this.buy_list[i].product_name === item.product_name) {
-                        this.buy_list[i].buying_units += item.buying_units;
-                        this.total_buying_price += 
-                            to_fiat_number(
-                                to_fiat_number(item.selling_price)
-                                * 
-                                to_fiat_number(this.buy_list[i].buying_units)
-                            );
+            if(this.buy_list.some(f=>f.product_flo_id===item.product_flo_id)) {
+                for (const buying_item of this.buy_list) {
+                    if (buying_item.product_flo_id === item.product_flo_id) {
+                        buying_item.buying_units += item.buying_units;
+                        // this.total_buying_price += 
+                        //     to_fiat_number(
+                        //         to_fiat_number(item.selling_price)
+                        //         * 
+                        //         to_fiat_number(this.buy_list[i].buying_units)
+                        //     );
                         return this.buy_list;
-                    }
+                    }   
                 }
             } else {
                 this.buy_list.push(item);
-                this.total_buying_price += 
-                    to_fiat_number(
-                        to_fiat_number(item.selling_price)
-                        * 
-                        to_fiat_number(item.buying_units)
-                    );
+                // this.total_buying_price += 
+                //     to_fiat_number(
+                //         to_fiat_number(item.selling_price)
+                //         * 
+                //         to_fiat_number(item.buying_units)
+                //     );
             }
         },
         remove_item_from_bucket: function(item) {
@@ -10384,7 +10450,54 @@
                 }
             }
         },
-        buy_item: async function(item) {
+        preview_shopping_bill: async function() {
+            try {
+                let total_amount = 0;
+                let bill_preview = [];
+                for (const buying_product_info in this.buy_list) {
+                    if (this.buy_list.hasOwnProperty(buying_product_info)) {
+                        const item = this.buy_list[buying_product_info];
+                        let product_details = await ecommerce.products.get_product_details_by_floId(item.product_flo_id);
+                        if(typeof product_details==="object" && typeof product_details[0]==="object") {
+                            product_details = product_details[0];
+                            if(Object.keys(ecommerce.master_configurations.sellers_list)
+                                .includes(floCrypto.getFloIDfromPubkeyHex(product_details.seller_product_certificate.seller_public_key))) {
+
+                                if(floCrypto.verifySign(JSON.stringify(product_details.product_info), 
+                                    product_details.seller_product_certificate.seller_signature,
+                                    product_details.seller_product_certificate.seller_public_key,
+                                )) {
+                                    this.shopping_bill.shopping_list.push(product_details);
+                                    this.shopping_bill.buyer_flo_id = ecommerce.loggedInUser.user_info.flo_id||myFloID;
+                                    console.log(product_details);
+                                    bill_preview.push({
+                                        "product": product_details.product_info.product_dynamic_information.product_name,
+                                        "price": product_details.product_info.product_dynamic_information.selling_price,
+                                        "quantity": item.buying_units
+                                    });
+                                    total_amount += 
+                                        to_fiat_number(
+                                            to_fiat_number(product_details.product_info.product_dynamic_information.selling_price)
+                                            * 
+                                            to_fiat_number(item.buying_units)
+                                        );
+                                }
+                            }
+                        } else {
+                            console.error(`Product with id ${item.product_flo_id} not found`);
+                            continue;
+                        }
+                    }
+                }
+                this.shopping_bill.total_amount = to_fiat_number(total_amount);
+                console.log(bill_preview)
+                console.log(this.shopping_bill.total_amount)
+            } catch (error) {
+                showMessage('Failed to preview shopping list', 'ERROR');
+                throw new Error(error);
+            }
+        },
+        checkout: async function(item) {
             try {
                 // Check if Seller is live or not
                 
@@ -10439,6 +10552,14 @@
                 localStorage.setItem("FloECommerceUserAddress", new_addr);
         },
     }
+
+    ecommerce.ui.BUYER.prototype = {
+        load_selling_items_ui: function buyerUI() {
+            const generalData = floGlobals.generalData[JSON.stringify({ application: floGlobals.application, type: ecommerce.master_configurations.DATA_TYPE.SELLING_PRODUCTS })];
+            
+        },
+    }
+
 </script>
 
 <!-- Managers functions -->
