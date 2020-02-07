@@ -9569,7 +9569,26 @@
                         appObjects: {},
                         vectorClock: {},
                         generalData: {},
-                        generalVC: {}
+                        generalVC: {},
+                        /* ecommerce app */
+                        // general purposes datastores
+                        myInfo: {
+                            indexes: {floId: null}
+                        },
+                        my_orders_history: {
+                            txid: null,
+                            status: null,
+                        },
+
+                        // for Seller view
+                        sellerProducts: {},
+
+                        // for Buyer view
+                        my_search_history: {
+                            indexes: {
+                                productCategory: null,
+                            }  
+                        }
                     }
                     //add other given objectStores
                     for (o in this.appObs)
@@ -9939,6 +9958,7 @@
         parse_flo_comments: async function() {
                 text = `masterFLOPubKey=03EA5E2CAB18DA585400D6EC569438D415FAF200528E05D0E2B9BEAA2B5C3DCA90
                 #!#SUBJECT=TEST_ECOMMERCE_7
+                #!#CURRENCY=INR
                 #!#DATA_TYPE={
                     "SELLING_PRODUCTS":"RANCHI_SELLING_PRODUCTS_7", 
                     "BUY_ORDERS":"RANCHI_BUY_ORDERS_7", 
@@ -10175,9 +10195,11 @@
                 this.buy_list = []; // tentative to change
                 this.shopping_bill = { // final buy order
                     shopping_list: [],
-                    total_amount: 0,
+                    quantity: {},
                 };
+                this.gst_rate = buyer_details.gst_rate || 0;
                 this.total_buying_price = 0;
+                this.total_amount = 0;
             },
             sellers: function Seller(seller_details={}) {
                 for (const key in seller_details) {
@@ -10409,29 +10431,43 @@
 <!-- Buyer functions -->
 <script>
     ecommerce.users.user_types.buyers.prototype = {
-        add_item_to_bucket: function(item) {
-            if(this.buy_list.some(f=>f.product_flo_id===item.product_flo_id)) {
+        add_item_to_bucket: async function(itemId='', buying_units=0) {
+            const item_details = await ecommerce.products.get_product_details_by_floId(itemId);
+            if(typeof item_details!=="object") return;
+            const item_flo_id = item_details[0].product_info.product_static_information.product_flo_id;
+            const selling_price = to_fiat_number(item_details[0].product_info.product_dynamic_information.selling_price);
+            const category = item_details[0].product_info.product_static_information.product_category;
+
+            if(this.buy_list.some(f=>f.product_flo_id===item_flo_id)) {
                 for (const buying_item of this.buy_list) {
-                    if (buying_item.product_flo_id === item.product_flo_id) {
-                        buying_item.buying_units += item.buying_units;
-                        // this.total_buying_price += 
-                        //     to_fiat_number(
-                        //         to_fiat_number(item.selling_price)
-                        //         * 
-                        //         to_fiat_number(this.buy_list[i].buying_units)
-                        //     );
+                    if (buying_item.product_flo_id === item_flo_id) {
+                        buying_item.buying_units += buying_units;
+                        this.total_buying_price += 
+                            to_fiat_number(
+                                to_fiat_number(selling_price)
+                                * 
+                                to_fiat_number(buying_units)
+                            );
                         return this.buy_list;
                     }   
                 }
             } else {
-                this.buy_list.push(item);
-                // this.total_buying_price += 
-                //     to_fiat_number(
-                //         to_fiat_number(item.selling_price)
-                //         * 
-                //         to_fiat_number(item.buying_units)
-                //     );
+                this.buy_list.push({
+                    product_flo_id: item_flo_id,
+                    buying_units: buying_units
+                });
+                this.total_buying_price += 
+                    to_fiat_number(
+                        to_fiat_number(selling_price)
+                        * 
+                        to_fiat_number(buying_units)
+                    );
             }
+            compactIDB.addData('my_search_history', 
+                {
+                    item_flo_id: item_flo_id, 
+                    productCategory: category
+                });
         },
         remove_item_from_bucket: function(item) {
             for (i = 0; i < this.buy_list.length; i++) {
@@ -10452,7 +10488,8 @@
         },
         preview_shopping_bill: async function() {
             try {
-                let total_amount = 0;
+                // Reset buy price
+                this.total_buying_price = 0;
                 let bill_preview = [];
                 for (const buying_product_info in this.buy_list) {
                     if (this.buy_list.hasOwnProperty(buying_product_info)) {
@@ -10467,15 +10504,23 @@
                                     product_details.seller_product_certificate.seller_signature,
                                     product_details.seller_product_certificate.seller_public_key,
                                 )) {
-                                    this.shopping_bill.shopping_list.push(product_details);
-                                    this.shopping_bill.buyer_flo_id = ecommerce.loggedInUser.user_info.flo_id||myFloID;
-                                    console.log(product_details);
+
+                                    let item_name = product_details.product_info.product_dynamic_information.product_name;
+                                    
+                                    // Prevent duplicate registration of products in shopping_list
+                                    if(!this.shopping_bill.shopping_list.some(s=>s.product_info.product_static_information.product_flo_id
+                                        ===product_details.product_info.product_static_information.product_flo_id)) {
+                                        this.shopping_bill.shopping_list.push(product_details);
+                                    }
+
+                                    this.shopping_bill.quantity[item_name] = Number(item.buying_units);
+
                                     bill_preview.push({
-                                        "product": product_details.product_info.product_dynamic_information.product_name,
+                                        "product": item_name,
                                         "price": product_details.product_info.product_dynamic_information.selling_price,
                                         "quantity": item.buying_units
                                     });
-                                    total_amount += 
+                                    this.total_buying_price += 
                                         to_fiat_number(
                                             to_fiat_number(product_details.product_info.product_dynamic_information.selling_price)
                                             * 
@@ -10489,48 +10534,99 @@
                         }
                     }
                 }
-                this.shopping_bill.total_amount = to_fiat_number(total_amount);
+                // FOR UI_WORK
                 console.log(bill_preview)
-                console.log(this.shopping_bill.total_amount)
+                
+                this.shopping_bill.buyer_flo_id = ecommerce.loggedInUser.user_info.flo_id||myFloID;
+                this.final_price = to_fiat_number(this.total_buying_price);
+                this.shopping_bill.final_price = this.final_price;
+                console.log(this.shopping_bill);
+                return this.shopping_bill;
+
             } catch (error) {
                 showMessage('Failed to preview shopping list', 'ERROR');
                 throw new Error(error);
             }
         },
+        add_gst: function() {
+            this.final_price = ((this.gst_rate+100)*this.total_buying_price)/100;
+        },
         checkout: async function(item) {
             try {
                 // Check if Seller is live or not
-                
-                // If Seller is live place a Buy order
-                const final_buy_list = {
-                    purchaseId: floCrypto.generateNewID().floID,
-                    buyer_id: myFloID,
-                    shopping_details: this.buy_list,
-                    total_shopping_price: this.total_buying_price,
-                    date_of_purchase: + new Date(),
-                    location: localStorage.getItem("FloECommerceUserAddress"),
+            
+                if(this.final_price<1) {
+                    showMessage(`The total price of purchase cannot be less tha Rs 1. Checkout cancelled.`);
+                    return false;
                 }
 
+                if(this.shopping_bill.shopping_list.length<1) {
+                    showMessage(`Your cart is empty. Checkout cancelled.`);
+                    return false;
+                }
+
+                // If Seller is live place a Buy order
+                this.shopping_bill.date_of_purchase = + new Date()
+                
+                let user_addr = localStorage.getItem("FloECommerceUserAddress");
+                if(typeof user_addr!=="string" || user_addr.length<1) {
+                    this.set_delivery_receiving_address();
+                }
+                this.shopping_bill.buyer_location = localStorage.getItem("FloECommerceUserAddress") || "";
+                
                 // Generate Cashier UPI for payment
                 const cashier = randomNoRepeats(Object.keys(ecommerce.master_configurations.cashiers))();
-                final_buy_list.cashier = cashier;
-                final_buy_list.buyer_signature = floCrypto.signData(JSON.stringify(final_buy_list), myPrivKey);
-                
+                this.shopping_bill.cashier = cashier;
+
+                const shopping_details_str = JSON.stringify(this.shopping_bill);
+
+                const buy_order_object = {
+                    txid: Crypto.SHA256(shopping_details_str),
+                    buy_order_data: this.shopping_bill,
+                    buyer_signature_details: {
+                        buyer_sign: floCrypto.signData(shopping_details_str, myPrivKey),
+                        buyer_pubkey: myPubKey
+                    },
+                    status: "AWAITING_PAYMENT_FROM_BUYER"
+                }
+
+                console.log(buy_order_object);
+
                 // Send buy info to server
-                floCloudAPI.sendGeneralData(final_buy_list, this.DATA_TYPE.BUY_ORDERS, { receiverID: floGlobals.adminID, senderIDs: [myFloID] });
+                floCloudAPI.sendGeneralData(buy_order_object, this.DATA_TYPE.BUY_ORDERS, { receiverID: floGlobals.adminID, senderIDs: [myFloID] });
 
                 // Store info in local history
-                compactIDB.addData('my_orders_history', final_buy_list);
+                compactIDB.addData('my_orders_history', buy_order_object);
 
+                const payment_info_data = {
+                    payment_amount: this.final_price,
+                    cashier: cashier,
+                }
+
+                this.proceed_to_payment(payment_info_data);
                 this.reset_bucket_list();
 
             } catch (error) {
                 throw new Error(error);
             }
         },
+        proceed_to_payment: function(data) {
+            // UI_WORK
+            const upi = ecommerce.master_configurations.cashiers[data.cashier].upi_id;
+            const msg = `Your buy order is registered.
+                Please pay ${ecommerce.master_configurations.CURRENCY} 
+                ${data.payment_amount} to ${upi} to complete the payment.`;
+            showMessage(msg, 'SUCCESS');
+            return true;
+        },
         reset_bucket_list: function() {
             this.total_buying_price = 0;
             this.buy_list = [];
+            this.final_price = 0;
+            this.shopping_bill = { 
+                shopping_list: [],
+                quantity: {},
+            }; 
         },
         set_delivery_receiving_address: function() {
             if (typeof(Storage) == "undefined") {
