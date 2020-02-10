@@ -9575,20 +9575,13 @@
                         myInfo: {
                             indexes: {floId: null}
                         },
-                        my_orders_history: {
-                            txid: null,
-                            status: null,
-                        },
+                        my_orders_history: {},
 
                         // for Seller view
                         sellerProducts: {},
 
                         // for Buyer view
-                        my_search_history: {
-                            indexes: {
-                                productCategory: null,
-                            }  
-                        }
+                        my_search_history: {},
                     }
                     //add other given objectStores
                     for (o in this.appObs)
@@ -9939,6 +9932,21 @@
             .substr(2, 9)}`;
         }
 
+        function printArrayOfArrays(arr, resultant_array={}) {
+            if ( typeof(arr) == "object") {
+                for (elem in arr) {
+                    if (arr.hasOwnProperty(elem)) {
+                        printArrayOfArrays(arr[elem], resultant_array);
+                        if(typeof(arr[elem]) !== "object" 
+                        && typeof(arr[elem]) !== "undefined") {
+                            resultant_array[elem] = arr[elem];
+                        }
+                    }
+                }
+                return resultant_array;
+            }
+        }
+
 </script>
 
 <script>
@@ -10103,15 +10111,26 @@
 
             const LIVE_USER = ecommerce.loggedInUser;
             
-            if(LIVE_USER.user_info.user_role==='BUYER') {
-                LIVE_USER.user_info.set_delivery_receiving_address();
-            }
 
             await this.retrieveLatestContent();
 
-            await ecommerce.products.create_approved_products_id_list();
-            await ecommerce.products.get_approved_products_list();
+            if(typeof ecommerce.approved_products_ids!=="object" 
+            || ecommerce.approved_products_ids.length<1) {
+                await ecommerce.products.create_approved_products_id_list();
+            }
 
+            if(typeof ecommerce.approved_products_list!=="object" 
+            || ecommerce.approved_products_list.length<1) {
+                await ecommerce.products.get_approved_products_list();
+            }
+
+            if(LIVE_USER.user_info.user_role==='BUYER') {
+                LIVE_USER.user_info.set_delivery_receiving_address();
+            }
+            if(LIVE_USER.user_info.user_role==='CASHIER') {
+                LIVE_USER.user_info.retrieve_latest_buy_orders()
+            }
+            
         },
 
         retrieveLatestContent: async function (receiverID = floGlobals.adminID, senderIDs = floGlobals.subAdmins) {
@@ -10374,6 +10393,16 @@
                 } 
             });
         },
+        get_product_details_by_txid: function(txid='') {
+            try {
+                return Object.values(ecommerce.recent_buy_orders)
+                .filter(f=>f.message.txid===txid)
+                .map(m=>m.message)
+            } catch (error) {
+                showMessage('Failed to get any product with txid '+txid, 'ERROR');
+                reject('Failed to get any product with txid '+txid);
+            }
+        },
     }
 </script>
 
@@ -10467,7 +10496,8 @@
                 {
                     item_flo_id: item_flo_id, 
                     productCategory: category
-                });
+                }, 
+                category);
         },
         remove_item_from_bucket: function(item) {
             for (i = 0; i < this.buy_list.length; i++) {
@@ -10593,10 +10623,12 @@
                 console.log(buy_order_object);
 
                 // Send buy info to server
-                floCloudAPI.sendGeneralData(buy_order_object, this.DATA_TYPE.BUY_ORDERS, { receiverID: floGlobals.adminID, senderIDs: [myFloID] });
+                //floCloudAPI.sendGeneralData(buy_order_object, this.DATA_TYPE.BUY_ORDERS, { receiverID: cashier, senderIDs: [myFloID] });
+
+                floCloudAPI.sendApplicationData(buy_order_object, ecommerce.master_configurations.DATA_TYPE.BUY_ORDERS, {application:ecommerce.master_configurations.SUBJECT, receiverID:cashier});
 
                 // Store info in local history
-                compactIDB.addData('my_orders_history', buy_order_object);
+                compactIDB.addData('my_orders_history', buy_order_object, buy_order_object.txid);
 
                 const payment_info_data = {
                     payment_amount: this.final_price,
@@ -10801,6 +10833,148 @@
             }
         },
     }
+</script>
+
+<!-- Cashier functions -->
+<script>
+    ecommerce.users.user_types.cashiers.prototype = {
+        retrieve_latest_buy_orders: async function() {
+            try {
+                const recent_buy_orders_req_str = await floCloudAPI.requestApplicationData({
+                    type:ecommerce.master_configurations.DATA_TYPE.BUY_ORDERS, 
+                    application:ecommerce.master_configurations.SUBJECT, 
+                    receiverID:myFloID});
+
+                ecommerce.recent_buy_orders = JSON.parse(recent_buy_orders_req_str);
+                return ecommerce.recent_buy_orders;
+            } catch (error) {
+                throw new Error(error)
+            }
+        },
+        validate_buy_orders: async function() {
+
+            try {
+                let recent_buy_orders_req = ecommerce.recent_buy_orders;
+                const buyOrderUIObject = [];
+                const flaggedOrders = [];
+
+                for (const buy_req in recent_buy_orders_req) {
+                    if (recent_buy_orders_req.hasOwnProperty(buy_req)) {
+                        
+                        const buyOrderObject = recent_buy_orders_req[buy_req];
+                        
+                        if(buyOrderObject.senderID!==floCrypto
+                        .getFloIDfromPubkeyHex(buyOrderObject.message.buyer_signature_details.buyer_pubkey)) {
+                            // flag order
+                            continue;
+                        }
+
+                        if(!floCrypto.verifySign(
+                            JSON.stringify(buyOrderObject.message.buy_order_data), 
+                            buyOrderObject.message.buyer_signature_details.buyer_sign, 
+                            buyOrderObject.message.buyer_signature_details.buyer_pubkey)
+                        ) {
+                            // flag order
+                            continue;
+                        }
+
+                        const buyOrderData = buyOrderObject.message.buy_order_data;
+
+                        // Calculate final price again and check with final_price in object
+                        const calculated_final_price = buyOrderData.shopping_list
+                        .reduce((total, current_elem)=>{
+                            let current_elem_info = current_elem.product_info;
+                            if(ecommerce.approved_products_ids
+                                .includes(current_elem_info.product_static_information.product_flo_id)) {
+                                total += current_elem_info.product_dynamic_information.selling_price
+                                    * buyOrderData.quantity[current_elem_info.product_dynamic_information.product_name];
+                                return total;
+                            }
+                        }, 0);
+                        
+                        if(buyOrderData.final_price===calculated_final_price) {
+                            buyOrderUIObject.push(buyOrderObject.message.txid);
+                        } else {
+                            console.warn('Total price did not match');
+                            flaggedOrders.push(buyOrderObject.message.txid);
+                        }
+
+                        console.log(buyOrderUIObject);
+                        console.log(flaggedOrders);
+
+
+                    }
+                }
+
+                this.load_buy_orders(buyOrderUIObject);
+                
+            } catch (error) {
+                showMessage(`Failed to load buy orders`, 'ERROR');
+                return false;
+            }
+            
+        },
+        load_buy_orders: function(txid_array=[]) {
+            try {
+                let t = ``;
+                for (const txid of txid_array) {                
+                    const validated_array = ecommerce.products.get_product_details_by_txid(txid);
+                    let buyOrderUIObject = printArrayOfArrays(validated_array);
+                    console.log(buyOrderUIObject);
+                    t += `<ul>`;
+                    for (const key in buyOrderUIObject) {
+                        if (buyOrderUIObject.hasOwnProperty(key)) {
+                            const order_element = buyOrderUIObject[key];
+                            t += `<li>${key}: ${order_element}</li>`;
+                            if(key==='txid') {
+                                t += `<button id='${order_element}' 
+                                        onclick="ecommerce.loggedInUser.user_info.approve_buy_orders('${order_element}')">
+                                    Approve</button>`;
+                            }
+                        }
+                    }
+                    t += `</ul>`;
+                }
+                document.getElementById('renderList').innerHTML = t;
+            } catch (error) {
+                throw new Error(error)
+            }
+        },
+        // Sign and send to shopkeeper flo id
+        approve_buy_orders: function(txid='') {
+            try {
+                const payment_to_vendor_txid = prompt("Please enter the txid: ", "");
+                if (typeof(payment_to_vendor_txid)!=="string" || payment_to_vendor_txid.length<1) return;
+                const validated_buy_order_array = ecommerce.products.get_product_details_by_txid(txid);
+                console.log(validated_buy_order_array);
+
+
+                // Make an object like Product name: payment_to_vendor_txid
+
+
+                const validated_buy_order = validated_buy_order_array[0];
+                validated_buy_order.status = "PAYMENT_TRANSFERRED_FROM_CASHIER_TO_VENDOR";
+                validated_buy_order.payment_to_vendor_txid = payment_to_vendor_txid;
+                
+                let cashier_signature_details = {};
+                cashier_signature_details.cashier_sign = floCrypto.signData(
+                    JSON.stringify(validated_buy_order), myPrivKey);
+                cashier_signature_details.cashier_pubkey = myPubKey;
+
+                validated_buy_order['cashier_signature_details'] = cashier_signature_details;
+
+                console.log(validated_buy_order);
+
+
+
+                // Can inform buyer
+
+            } catch (error) {
+                showMessage('Errror');
+                throw new Error(error);
+            }
+        },
+    }    
 </script>
 
 <div id="renderList"></div>
