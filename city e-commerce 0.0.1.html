@@ -5,6 +5,9 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta http-equiv="X-UA-Compatible" content="ie=edge">
     <link href="https://fonts.googleapis.com/css?family=Merriweather:700|Roboto:300,400,500,700&display=swap" rel="stylesheet">
+    <!-- Bootstrap CSS -->
+    <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.3.1/css/bootstrap.min.css" integrity="sha384-ggOyR0iXCbMQv3Xipma34MD+dH/1fQ784/j6cY/iJTQUOhcWr7x9JvoRxT2MZw1T" crossorigin="anonymous">
+
     <title>City e-commerce</title>
     <style>* {
         -webkit-box-sizing: border-box;
@@ -772,7 +775,11 @@
           opacity: 1;
         }
       }
-      /*# sourceMappingURL=main.css.map */</style>
+      /*# sourceMappingURL=main.css.map */
+      .hidden {
+        display: none;
+      }
+      </style>
 </head>
 <script>
     /* Constants for FLO blockchain operations !!Make sure to add this at begining!! */
@@ -794,7 +801,7 @@
   
       //for cloud apps
       subAdmins: ['F72fAV6aG8JrzR3N9F43vBE59q1FqWhBAp'],
-      application: "eCommerce", // ContentCollaboration
+      application: "eCommerce", 
       vectorClock: {},
       appObjects: {},
       generalData: {},
@@ -954,6 +961,30 @@
     </nav>
     <div id="toast" class="hide">
         <span>Action done</span>
+    </div>
+
+    <!-- Order Checkout Modal -->
+
+    <div class="modal fade" id="checkoutModal" tabindex="-1" role="dialog" aria-labelledby="checkoutModalModalLabel" aria-hidden="true">
+        <div class="modal-dialog" role="document">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="checkoutModalModalLabel">Bill Preview</h5>
+                <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                    <span aria-hidden="true">&times;</span>
+                </button>
+            </div>
+            <div class="modal-body">
+                <div id="billPreview"></div>
+                <label for="item_delivery_addr">Delivery Address:</label>
+                <textarea class="form-control" id="item_delivery_addr" cols="30" rows="10"></textarea>
+            </div>
+            <div class="modal-footer">
+                <button type="button" onclick="ecommerce.loggedInUser.user_info.checkout(true)" class="btn btn-secondary" >Pay Using Wallet</button>
+                <button type="button" onclick="ecommerce.loggedInUser.user_info.checkout(false)" class="btn btn-primary">Pay Using UPI</button>
+            </div>
+        </div>
+        </div>
     </div>
     <script>
         let productDb = [
@@ -9582,6 +9613,9 @@
 
                         // for Buyer view
                         my_search_history: {},
+
+                        // Cashier
+                        approved_buy_orders: {},
                     }
                     //add other given objectStores
                     for (o in this.appObs)
@@ -9965,14 +9999,14 @@
         
         parse_flo_comments: async function() {
                 text = `masterFLOPubKey=03EA5E2CAB18DA585400D6EC569438D415FAF200528E05D0E2B9BEAA2B5C3DCA90
-                #!#SUBJECT=TEST_ECOMMERCE_7
+                #!#SUBJECT=TEST_ECOMMERCE_8
                 #!#CURRENCY=INR
                 #!#DATA_TYPE={
-                    "SELLING_PRODUCTS":"RANCHI_SELLING_PRODUCTS_7", 
-                    "BUY_ORDERS":"RANCHI_BUY_ORDERS_7", 
-                    "MESSAGES":"RANCHI_MESSAGES_7",
-                    "CASHIERS_DATA":"RANCHI_CASHIERS_DATA_7", 
-                    "COURIER_DATA":"RANCHI_COURIER_DATA_7"}
+                    "SELLING_PRODUCTS":"RANCHI_SELLING_PRODUCTS_8", 
+                    "BUY_ORDERS":"RANCHI_BUY_ORDERS_8", 
+                    "MESSAGES":"RANCHI_MESSAGES_8",
+                    "CASHIERS_DATA":"RANCHI_CASHIERS_DATA_8", 
+                    "COURIER_DATA":"RANCHI_COURIER_DATA_8"}
                 #!#CITY=Ranchi
                 #!#product_categories=Electronics,Clothes & Accessories,Home Appliances, Food
                 #!#cashiers=
@@ -10111,7 +10145,6 @@
 
             const LIVE_USER = ecommerce.loggedInUser;
             
-
             await this.retrieveLatestContent();
 
             if(typeof ecommerce.approved_products_ids!=="object" 
@@ -10325,18 +10358,18 @@
             this.new_digital_product = new ecommerce.products.build_product_object(product_details);
             this.new_digital_product.product_info.product_static_information.product_type = "DIGITAL";
         },
-
         get_approved_products_id: function() {
+            if(typeof floGlobals.appObjects[ecommerce.master_configurations.SUBJECT]=="undefined") return [];
             return Object.values(floGlobals.appObjects[ecommerce.master_configurations.SUBJECT].Products)
                         .reduce((t, c, i)=>[...Object.values(c)], [])
                         .filter(f=>f.product_approved===true)
                         .map(m=>m.product_flo_id);            
         },
-
         create_approved_products_id_list: function() {
             return new Promise((resolve)=>{
                 resolve(ecommerce.products.get_approved_products_id())
             }).then(approved_products=>{
+                if(approved_products.length<1) return ecommerce.approved_products_ids=[];
                 Object.defineProperty(ecommerce, "approved_products_ids",
                 {
                     value: approved_products,
@@ -10346,7 +10379,6 @@
                 });
             })
         },
-
         // Segregate admin approved products from general objects
         get_approved_products_list: function() {
             return new Promise((resolve, reject)=>{
@@ -10360,7 +10392,7 @@
                     const certified_products = generalData
                             .map(m=>m.message[Object.keys(m.message)[0]])
                             .filter(f=>ecommerce.approved_products_ids
-                            .includes(f.product_info.product_static_information.product_flo_id));
+                                .includes(f.product_info.product_static_information.product_flo_id));
 
                     Object.defineProperty(ecommerce, "approved_products_list",
                         {
@@ -10377,7 +10409,6 @@
                 }
             });
         },
-
         get_product_details_by_floId: function(productFloId='') {
             return new Promise((resolve, reject) => {
                 try {
@@ -10460,6 +10491,41 @@
 <!-- Buyer functions -->
 <script>
     ecommerce.users.user_types.buyers.prototype = {
+        buy_item: async function(itemId='', buying_units=0) {
+            try {
+                const item_details = await ecommerce.products.get_product_details_by_floId(itemId);
+                if(typeof item_details!=="object") return;
+                const item_flo_id = item_details[0].product_info.product_static_information.product_flo_id;
+                const selling_price = to_fiat_number(item_details[0].product_info.product_dynamic_information.selling_price);
+                const category = item_details[0].product_info.product_static_information.product_category;
+
+                this.buy_list.push({
+                    product_flo_id: item_flo_id,
+                    buying_units: buying_units
+                });
+                this.total_buying_price += 
+                    to_fiat_number(
+                        to_fiat_number(selling_price)
+                        * 
+                        to_fiat_number(buying_units)
+                    );
+
+                const _id = unique_id();
+
+                compactIDB.addData('my_search_history', 
+                    {
+                        id: _id,
+                        item_flo_id: item_flo_id, 
+                        productCategory: category
+                    }, 
+                _id);
+
+                this.preview_shopping_bill();
+
+            } catch (error) {
+                throw new Error(error)
+            }
+        },
         add_item_to_bucket: async function(itemId='', buying_units=0) {
             const item_details = await ecommerce.products.get_product_details_by_floId(itemId);
             if(typeof item_details!=="object") return;
@@ -10571,7 +10637,19 @@
                 this.final_price = to_fiat_number(this.total_buying_price);
                 this.shopping_bill.final_price = this.final_price;
                 console.log(this.shopping_bill);
-                return this.shopping_bill;
+                //return this.shopping_bill;
+
+                //billPreview
+                let billPreviewUI = `
+                    <p>Product: ${this.shopping_bill.shopping_list[0].product_info.product_dynamic_information.product_name}</p>
+                    <p>Price: ${this.shopping_bill.shopping_list[0].product_info.product_dynamic_information.selling_price}</p>
+                    <p>Quantity: ${this.shopping_bill.quantity[this.shopping_bill.shopping_list[0].product_info.product_dynamic_information.product_name]}</p>
+                    <h5>Total: ${this.shopping_bill.final_price}</h5>
+                `;
+
+                document.getElementById('billPreview').innerHTML=billPreviewUI;
+                document.getElementById('item_delivery_addr').innerHTML=localStorage.getItem("FloECommerceUserAddress");
+                $('#checkoutModal').modal("show");
 
             } catch (error) {
                 showMessage('Failed to preview shopping list', 'ERROR');
@@ -10581,12 +10659,12 @@
         add_gst: function() {
             this.final_price = ((this.gst_rate+100)*this.total_buying_price)/100;
         },
-        checkout: async function(item) {
+        checkout: async function(pay_using_wallet=true) {
             try {
                 // Check if Seller is live or not
             
                 if(this.final_price<1) {
-                    showMessage(`The total price of purchase cannot be less tha Rs 1. Checkout cancelled.`);
+                    showMessage(`The total price of purchase cannot be less than Re 1. Checkout cancelled.`);
                     return false;
                 }
 
@@ -10621,22 +10699,76 @@
                 }
 
                 console.log(buy_order_object);
+                
+                if(pay_using_wallet===true) {
+                    const flo_comment = `transfer ${buy_order_object.buy_order_data.final_price} rupee#`;                
+                    const token_balance_url = `https://ranchimallflo.duckdns.org/api/v1.0/getFloAddressBalance?token=rupee&floAddress=${myFloID}`;
+                    const sender_token_balance = await ajaxGet(token_balance_url);
+                    let err_msg = '';
 
-                // Send buy info to server
-                //floCloudAPI.sendGeneralData(buy_order_object, this.DATA_TYPE.BUY_ORDERS, { receiverID: cashier, senderIDs: [myFloID] });
+                    if(typeof sender_token_balance!=="object" 
+                    || typeof sender_token_balance.balance!=="number"
+                    || sender_token_balance.balance<token_amount) {
+                        err_msg = `INFO: Sender has insufficient rupee balance.`;
+                        alert(err_msg);
+                        return false;
+                    }
 
-                floCloudAPI.sendApplicationData(buy_order_object, ecommerce.master_configurations.DATA_TYPE.BUY_ORDERS, {application:ecommerce.master_configurations.SUBJECT, receiverID:cashier});
+                    const vendor_addr = buy_order_object
+                        .buy_order_data.shopping_list[0].product_info.product_static_information
+                        .seller_flo_id;
 
-                // Store info in local history
-                compactIDB.addData('my_orders_history', buy_order_object, buy_order_object.txid);
+                    let flo_txid = await floBlockchainAPI.sendTx(myFloID, vendor_addr, 0.001, myPrivKey, flo_comment)
+                    console.log(flo_txid);
+                    if(typeof flo_txid !== "string") {
+                        alert(`Transaction unsuccessfull. You can try payment through UPI to continue.`);
+                        return false;
+                    } else {
 
-                const payment_info_data = {
-                    payment_amount: this.final_price,
-                    cashier: cashier,
+                        buy_order_object.status = "BUYER_PAID_VENDOR_USING_WALLET";
+                        buy_order_object.payment_to_vendor_txid = flo_txid;
+                        // Store info in local history
+                        compactIDB.addData('my_orders_history', buy_order_object, buy_order_object.txid);
+
+                        floCloudAPI.sendGeneralData(buy_order_object, ecommerce.master_configurations.DATA_TYPE.BUY_ORDERS, 
+                        {receiverID:vendor_addr, senderIDs: [myFloID]});
+
+                        this.reset_bucket_list();
+
+                        alert(`Transaction successfull: ${flo_txid}. Your order has been sent to the vendor.`);
+                        return false;
+                    }
+                } else {
+
+                    const upi = ecommerce.master_configurations.cashiers[cashier].upi_id;
+                    const msg = `Your buy order is registered.
+                        Please pay ${ecommerce.master_configurations.CURRENCY} 
+                        ${this.final_price} to ${upi} to complete the payment.`;
+                    showMessage(msg, 'SUCCESS');
+                    alert(msg);
+                    const upi_to_cashier_txid = prompt(`Enter the UPI Ref. Number or transaction id for payment of ${this.final_price} to ${upi}`, '');
+                    if(typeof upi_to_cashier_txid!=="string" || upi_to_cashier_txid.length<1) {
+                        alert("Invalid UPI txid");
+                        return false;
+                    }
+
+                    buy_order_object.upi_to_cashier_txid = upi_to_cashier_txid;
+                    buy_order_object.status = "BUYER_PAID_VENDOR_THROUGH_CASHIER";
+
+                    // Store info in local history
+                    compactIDB.addData('my_orders_history', buy_order_object, buy_order_object.txid);
+
+                    floCloudAPI.sendGeneralData(buy_order_object, ecommerce.master_configurations.DATA_TYPE.BUY_ORDERS, 
+                    {receiverID:cashier, senderIDs: [myFloID]});
+
+                    // const payment_info_data = {
+                    //     payment_amount: this.final_price,
+                    //     cashier: cashier,
+                    // }
+
+                    //this.proceed_to_payment(payment_info_data);
+                    this.reset_bucket_list();
                 }
-
-                this.proceed_to_payment(payment_info_data);
-                this.reset_bucket_list();
 
             } catch (error) {
                 throw new Error(error);
@@ -10840,12 +10972,16 @@
     ecommerce.users.user_types.cashiers.prototype = {
         retrieve_latest_buy_orders: async function() {
             try {
-                const recent_buy_orders_req_str = await floCloudAPI.requestApplicationData({
-                    type:ecommerce.master_configurations.DATA_TYPE.BUY_ORDERS, 
-                    application:ecommerce.master_configurations.SUBJECT, 
-                    receiverID:myFloID});
+                await floCloudAPI.requestGeneralData(
+                    ecommerce.master_configurations.DATA_TYPE.BUY_ORDERS,
+                    {receiverID:myFloID});
 
-                ecommerce.recent_buy_orders = JSON.parse(recent_buy_orders_req_str);
+                const recent_buy_orders_req = floGlobals.generalData[JSON.stringify(
+                { application: floGlobals.application, 
+                  type: ecommerce.master_configurations.DATA_TYPE.BUY_ORDERS 
+                })];
+
+                ecommerce.recent_buy_orders = recent_buy_orders_req;
                 return ecommerce.recent_buy_orders;
             } catch (error) {
                 throw new Error(error)
@@ -10854,6 +10990,7 @@
         validate_buy_orders: async function() {
 
             try {
+                await this.retrieve_latest_buy_orders();
                 let recent_buy_orders_req = ecommerce.recent_buy_orders;
                 const buyOrderUIObject = [];
                 const flaggedOrders = [];
@@ -10863,7 +11000,7 @@
                         
                         const buyOrderObject = recent_buy_orders_req[buy_req];
                         
-                        if(buyOrderObject.senderID!==floCrypto
+                        if(buyOrderObject.sender!==floCrypto
                         .getFloIDfromPubkeyHex(buyOrderObject.message.buyer_signature_details.buyer_pubkey)) {
                             // flag order
                             continue;
@@ -10914,10 +11051,13 @@
             }
             
         },
-        load_buy_orders: function(txid_array=[]) {
+        load_buy_orders: async function(txid_array=[]) {
             try {
+                const approved_buys = await compactIDB.readAllData('approved_buy_orders')
+                const approved_buys_txids = approved_buys.map(m=>m.txid)
                 let t = ``;
-                for (const txid of txid_array) {                
+                for (const txid of txid_array) {     
+                    if(approved_buys_txids.includes(txid)) continue;           
                     const validated_array = ecommerce.products.get_product_details_by_txid(txid);
                     let buyOrderUIObject = printArrayOfArrays(validated_array);
                     console.log(buyOrderUIObject);
@@ -10947,11 +11087,7 @@
                 if (typeof(payment_to_vendor_txid)!=="string" || payment_to_vendor_txid.length<1) return;
                 const validated_buy_order_array = ecommerce.products.get_product_details_by_txid(txid);
                 console.log(validated_buy_order_array);
-
-
-                // Make an object like Product name: payment_to_vendor_txid
-
-
+                
                 const validated_buy_order = validated_buy_order_array[0];
                 validated_buy_order.status = "PAYMENT_TRANSFERRED_FROM_CASHIER_TO_VENDOR";
                 validated_buy_order.payment_to_vendor_txid = payment_to_vendor_txid;
@@ -10965,7 +11101,12 @@
 
                 console.log(validated_buy_order);
 
+                const vendor_addr = validated_buy_order.buy_order_data.shopping_list[0].product_info.product_static_information.seller_flo_id;
 
+                floCloudAPI.sendGeneralData(validated_buy_order, ecommerce.master_configurations.DATA_TYPE.BUY_ORDERS, 
+                        {receiverID:vendor_addr, senderIDs: [myFloID]});
+
+                compactIDB.addData("approved_buy_orders", validated_buy_order, txid);
 
                 // Can inform buyer
 
@@ -10976,6 +11117,9 @@
         },
     }    
 </script>
+ <script src="https://code.jquery.com/jquery-3.3.1.slim.min.js" integrity="sha384-q8i/X+965DzO0rT7abK41JStQIAqVgRVzpbzo5smXKp4YfRvH+8abtTE1Pi6jizo" crossorigin="anonymous"></script>
+ <script src="https://cdnjs.cloudflare.com/ajax/libs/popper.js/1.14.7/umd/popper.min.js" integrity="sha384-UO2eT0CpHqdSJQ6hJty5KVphtPhzWj9WO1clHTMGa3JDZwrnQq4sF86dIHNDz0W1" crossorigin="anonymous"></script>
+ <script src="https://stackpath.bootstrapcdn.com/bootstrap/4.3.1/js/bootstrap.min.js" integrity="sha384-JjSmVgyd0p3pXB1rRibZUAYoIIy6OrQ6VrjIEaFf/nJGzIxFDsf4x0xIM+B07jRM" crossorigin="anonymous"></script>
 
 <div id="renderList"></div>
 </html>
