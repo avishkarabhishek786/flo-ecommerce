@@ -10006,7 +10006,8 @@
                     "BUY_ORDERS":"RANCHI_BUY_ORDERS_8", 
                     "MESSAGES":"RANCHI_MESSAGES_8",
                     "CASHIERS_DATA":"RANCHI_CASHIERS_DATA_8", 
-                    "COURIER_DATA":"RANCHI_COURIER_DATA_8"}
+                    "COURIER_DATA":"RANCHI_COURIER_DATA_8",
+                    "PURCHASED_ITEMS": "RANCHI_PURCHASED_ITEMS_8"}
                 #!#CITY=Ranchi
                 #!#product_categories=Electronics,Clothes & Accessories,Home Appliances, Food
                 #!#cashiers=
@@ -10159,9 +10160,18 @@
 
             if(LIVE_USER.user_info.user_role==='BUYER') {
                 LIVE_USER.user_info.set_delivery_receiving_address();
+                LIVE_USER.user_info.display_items();
+                LIVE_USER.user_info.display_purchased_items();
             }
             if(LIVE_USER.user_info.user_role==='CASHIER') {
-                LIVE_USER.user_info.retrieve_latest_buy_orders()
+                LIVE_USER.user_info.validate_buy_orders()
+            }
+            if(LIVE_USER.user_info.user_role==='MANAGER') {
+                LIVE_USER.user_info.get_general_data()
+            }
+            if(LIVE_USER.user_info.user_role==='SELLER') {
+                LIVE_USER.user_info.list_products_to_sell();
+                floCloudAPI.requestGeneralData(ecommerce.master_configurations.DATA_TYPE.BUY_ORDERS, {receiverID:myFloID});
             }
             
         },
@@ -10173,7 +10183,7 @@
             for (const key in ecommerce.master_configurations.DATA_TYPE) {
                 if (ecommerce.master_configurations.DATA_TYPE.hasOwnProperty(key)) {
                     const element = ecommerce.master_configurations.DATA_TYPE[key];
-                    promises.push(floCloudAPI.requestGeneralData(element));       
+                    promises.push(floCloudAPI.requestGeneralData(element, {receiverID:myFloID}));       
                 }
             }
             await Promise.all(promises);
@@ -10297,20 +10307,6 @@
 
     }
     
-    ecommerce.ui = {
-        BUYER: function() {
-            this.ui_data = {};
-        },
-        SELLER: function() {
-            this.ui_data = {};
-        },        
-        CASHIER: function() {
-            this.ui_data = {};
-        },        
-        COURIER: function() {
-            this.ui_data = {};
-        },
-    }
 </script>
 
 <!-- Products -->
@@ -10426,12 +10422,16 @@
         },
         get_product_details_by_txid: function(txid='') {
             try {
-                return Object.values(ecommerce.recent_buy_orders)
+                const latest_buy_orders = floGlobals.generalData[JSON.stringify(
+                    { application: floGlobals.application, 
+                    type: ecommerce.master_configurations.DATA_TYPE.BUY_ORDERS 
+                })];
+                return Object.values(latest_buy_orders)
                 .filter(f=>f.message.txid===txid)
                 .map(m=>m.message)
             } catch (error) {
                 showMessage('Failed to get any product with txid '+txid, 'ERROR');
-                reject('Failed to get any product with txid '+txid);
+                throw new Error('Failed to get any product with txid '+txid);
             }
         },
     }
@@ -10445,20 +10445,22 @@
                 let productClass = null;
                 if(product_details.product_type==="PHYSICAL") {
                     productClass = "physical_products";
+                    product_type = 'new_physical_product';
                 } else if(product_details.product_type==="DIGITAL") {
                     productClass = "digital_products";
+                    product_type = 'new_digital_product';
                 } else return false;
 
                 // Generate a product object
                 const nayaProduct = new ecommerce.products[productClass](product_details);
             
-                nayaProduct.new_digital_product.seller_product_certificate={
+                nayaProduct[product_type].seller_product_certificate={
                     seller_public_key: myPubKey,
-                    seller_signature: floCrypto.signData(JSON.stringify(nayaProduct.new_digital_product.product_info), myPrivKey),
+                    seller_signature: floCrypto.signData(JSON.stringify(nayaProduct[product_type].product_info), myPrivKey),
                 }
 
                 const input_data = {};
-                input_data[nayaProduct.new_digital_product.product_info.product_static_information.product_flo_id]=nayaProduct.new_digital_product
+                input_data[nayaProduct[product_type].product_info.product_static_information.product_flo_id]=nayaProduct[product_type]
                 floCloudAPI.sendGeneralData(input_data, ecommerce.master_configurations.DATA_TYPE.SELLING_PRODUCTS, { receiverID: floGlobals.adminID, senderIDs: [myFloID] })
 
                 showMessage("Product added into the cloud successfully.", "SUCCESS");
@@ -10469,22 +10471,119 @@
             }
         }, 
         update_product_status: function(old_product_details, new_product_details) {
-            const object_values = Object.keys(obj1);
-            
-            // SECURITY_CHECK: Test if product_details.product is certified by Admin
+            try {
+                const object_values = Object.keys(obj1);
+                
+                // SECURITY_CHECK: Test if product_details.product is certified by Admin
 
-            for(i in product_details) {
-                if(object_values.includes(i)) {
-                    obj1[i] = product_details[i];
+                for(i in product_details) {
+                    if(object_values.includes(i)) {
+                        obj1[i] = product_details[i];
+                    }
                 }
+                //this.list_products_to_sell();    
+            } catch (error) {
+                throw new Error(error)
             }
-            this.list_products_to_sell();    
         },
         list_products_to_sell: async function() {
-            // const myProducts = await compactIDB.readAllData('sellerProducts');
-            // const mySellingProducts = myProducts.filter(f=>(f.onSale===True && f.stock_available>0));
-            // console.table(mySellingProducts);
-        }
+            try {
+                const myProducts = ecommerce.approved_products_list;
+                const mySellingProducts = myProducts.filter(f=>
+                    (f.product_info.product_static_information.seller_flo_id===myFloID));
+                console.table(mySellingProducts);
+                let t = ``;
+                for (const product of mySellingProducts) {
+                    let p = product.product_info.product_dynamic_information;
+                    let pid = product.product_info.product_static_information.product_flo_id;
+                    t += `<p><strong>Product</strong>: <input type="text" id="${pid}_product" class="form-control" value="${p.product}"></p>`;
+                    t += `<p><strong>Product Name</strong>: <input type="text" id="${pid}_product" class="form-control" value="${p.product_name}"> </p>`;
+                    t += `<p><strong>Product Description</strong>: <input type="text" id="${pid}_product" class="form-control" value="${p.product_description}"></p>`;
+                    t += `<p><strong>Product Image</strong>: <input type="text" id="${pid}_product" class="form-control" value="${p.image}"></p>`;
+                    t += `<p><strong>Product Selling Price</strong>: <input type="text" id="${pid}_product" class="form-control" value="${p.selling_price}"></p>`;
+                    t += `<p><strong>Product Location</strong>: <input type="text" id="${pid}_product" class="form-control" value="${p.product_location}"></p>`;
+                    t += `<p><strong>Items Available </strong>: <input type="text" id="${pid}_product" class="form-control" value="${p.items_available}"></p>`;
+                    t += `<p><strong>On Sale</strong>: <input type="text" id="${pid}_product" class="form-control" value="${p.onSale}"></p>`;
+                    t += `<p><button class="btn btn-primary" 
+                        onclick="ecommerce.loggedInUser.user_info.update_product_status('${pid}')">
+                    Update</button></p>`;
+                    t += `<hr />`;
+                }
+
+                document.getElementById('renderList').insertAdjacentHTML( 'beforeend', t);
+
+            } catch (error) {
+                throw new Error(error)
+            }
+        },
+        list_buy_orders: function() {
+            try {
+                const latest_buy_orders = floGlobals.generalData[JSON.stringify(
+                    { application: floGlobals.application, 
+                    type: ecommerce.master_configurations.DATA_TYPE.BUY_ORDERS 
+                })];
+
+                const latestBuyOrdersList = document.getElementById('latestBuyOrdersList')
+
+                let t = ``;
+
+                for (const buy_order of latest_buy_orders) {
+                    let bo = buy_order.message;
+                    let product_dynamic_info = bo.buy_order_data.shopping_list[0].product_info.product_dynamic_information;
+                    t += `<p>UPI Txid: ${bo.payment_to_vendor_txid}</p>`;
+                    t += `<p>Item: ${product_dynamic_info.product_name}: ${bo.buy_order_data.quantity[product_dynamic_info.product_name]}</p>`;
+                    t += `<p>Total Price: ${bo.buy_order_data.final_price}</p>`;
+                    t += `<p><button onclick="ecommerce.loggedInUser.user_info.dispatch_product('${bo.txid}')">Dispatch Item</button></p>`;
+                    t += `<hr>`;
+                }   
+
+                latestBuyOrdersList.insertAdjacentHTML('beforeend', t);
+
+            } catch (error) {
+                throw new Error(error)
+            }
+        },
+        dispatch_product: function(buy_txid='') {
+            try {
+                const latest_buy_orders = ecommerce.products.get_product_details_by_txid(buy_txid)
+                if(latest_buy_orders.length<1) throw new Error('No such buy order found.')
+                const product_details = latest_buy_orders[0].buy_order_data.shopping_list[0].product_info;
+                const buyer = latest_buy_orders[0].buy_order_data.buyer_flo_id;
+                let product = product_details.product_dynamic_information.product;
+                
+                if(product_details.product_static_information.product_type==="DIGITAL") {
+
+                    switch (product) {
+                        case "MOVIE_TICKETS":
+                           
+                            let ticket = `
+                                Buy_Txid: ${buy_txid}
+                                Buyer Id: ${buyer}
+                                Movie: ${product_details.product_dynamic_information.product_name}   
+                                Movie DateTime: ${product_details.product_dynamic_information.movie_datetime}
+                                Seat Number: ${product_details.product_dynamic_information.seat_number}`;
+
+                            let seller_sig = floCrypto.signData(ticket, myPrivKey)
+
+                            let signed_ticket = ticket+' VendorSignature: '+seller_sig; 
+                           
+                            floCloudAPI.sendGeneralData(signed_ticket, ecommerce.master_configurations.DATA_TYPE.PURCHASED_ITEMS, 
+                            { receiverID: buyer, senderIDs: [myFloID] })
+                           
+                            break;
+                    
+                        default:
+                            break;
+                    }
+
+                } else if(product_details.product_static_information.product_type==="PHYSICAL") {
+
+                }
+            
+            } catch (error) {
+                throw new Error(error)
+            }
+        },
     }
 </script>
 
@@ -10811,12 +10910,74 @@
             if(typeof new_addr==='string' && new_addr.length>0) 
                 localStorage.setItem("FloECommerceUserAddress", new_addr);
         },
-    }
+        display_items: function() {
+            try {
+                const myProducts = ecommerce.approved_products_list;
+                const mySellingProducts = myProducts.filter(f=>
+                    (f.product_info.product_dynamic_information.onSale===true 
+                    && f.product_info.product_dynamic_information.items_available>0));
+                console.table(mySellingProducts);
+                let t = ``;
+                for (const product of mySellingProducts) {
+                    let p = product.product_info;
+                    t += `<div class="product-card">
+                        <picture style="height: 226.390625px">
+                            <source srcset="">
+                            <img src="" alt="">
+                        </picture>
+                        <div class="product-info">
+                            <span class="product-name">${p.product_dynamic_information.product_name}</span>
+                            <span class="price"><span>₹</span><span>${p.product_dynamic_information.selling_price}</span></span>
+                            <span class="rating" style="background: forestgreen">
+                                <svg viewBox="0 0 69.81 69.69">
+                                    <path d="M34.18,58.59L15.33,69.01c-1.09,0.6-2.39-0.32-2.19-1.54l3.64-22.29c0.08-0.47-0.07-0.94-0.4-1.28L0.92,28.06
+                                    c-0.85-0.87-0.36-2.33,0.84-2.51l21.23-3.24c0.49-0.07,0.91-0.39,1.12-0.84l9.44-20.11c0.54-1.14,2.16-1.14,2.69,0l9.44,20.11
+                                    c0.21,0.45,0.63,0.76,1.12,0.84l21.23,3.24c1.2,0.18,1.69,1.64,0.84,2.51L53.43,43.9c-0.33,0.34-0.48,0.81-0.4,1.28l3.64,22.29
+                                    c0.2,1.23-1.1,2.14-2.19,1.54L35.62,58.59C35.17,58.34,34.63,58.34,34.18,58.59z"></path>
+                                </svg>
+                                <span class="numeric-rating">4.5</span>
+                                <span class="reviews">(200)</span>
+                            </span>
+                            <button class="buy" onclick="ecommerce.loggedInUser.user_info.buy_item('${p.product_static_information.product_flo_id}', 1)">Buy</button>
+                        </div>
+                        <button class="add-to-basket" title="Add to basket for buying together">
+                            <svg viewBox="0 0 72 72" class="">
+                                <line x1="36" y1="0" x2="36" y2="72"></line>
+                                <line x1="0" y1="36" x2="72" y2="36"></line>
+                            </svg>
+                        </button>
+                    </div>`;
+                }
 
-    ecommerce.ui.BUYER.prototype = {
-        load_selling_items_ui: function buyerUI() {
-            const generalData = floGlobals.generalData[JSON.stringify({ application: floGlobals.application, type: ecommerce.master_configurations.DATA_TYPE.SELLING_PRODUCTS })];
-            
+                document.getElementById('product_container').insertAdjacentHTML( 'beforeend', t);
+
+             } catch (error) {
+                 throw new Error(error)
+             }
+        },
+        display_purchased_items: function() {
+            try {
+                const my_purchased_items = floGlobals.generalData[JSON.stringify(
+                    { application: floGlobals.application, 
+                    type: ecommerce.master_configurations.DATA_TYPE.PURCHASED_ITEMS 
+                })];
+
+                const myPurchasedItemsList = document.getElementById('myPurchasedItemsList')
+
+                let t = ``;
+
+                t += `<h5>Your Purchased Items</h5>`;
+
+                for (const my_items of my_purchased_items) {
+                    t += `${my_items.message.trim()}`;
+                    t += `<hr>`
+                }
+
+                myPurchasedItemsList.insertAdjacentHTML('beforeend', t);
+
+            } catch (error) {
+                throw new Error(error)
+            }
         },
     }
 
@@ -10868,6 +11029,9 @@
                 for (const product_id in new_data.message) {
                     if (new_data.message.hasOwnProperty(product_id)) {
                         const new_product_data = new_data.message[product_id];
+                       
+                        if(ecommerce.approved_products_ids.includes(new_product_data.product_info.product_static_information.product_flo_id)) continue;
+                       
                         const seller_id = floCrypto.getFloIDfromPubkeyHex(new_product_data.seller_product_certificate.seller_public_key);
                         if(seller_id===new_data.sender) {
                             if(Object.keys(ecommerce.master_configurations.sellers_list).includes(seller_id)) {
@@ -11039,7 +11203,6 @@
                         console.log(buyOrderUIObject);
                         console.log(flaggedOrders);
 
-
                     }
                 }
 
@@ -11054,7 +11217,7 @@
         load_buy_orders: async function(txid_array=[]) {
             try {
                 const approved_buys = await compactIDB.readAllData('approved_buy_orders')
-                const approved_buys_txids = approved_buys.map(m=>m.txid)
+                const approved_buys_txids = Object.values(approved_buys).map(m=>m.txid)
                 let t = ``;
                 for (const txid of txid_array) {     
                     if(approved_buys_txids.includes(txid)) continue;           
@@ -11083,7 +11246,7 @@
         // Sign and send to shopkeeper flo id
         approve_buy_orders: function(txid='') {
             try {
-                const payment_to_vendor_txid = prompt("Please enter the txid: ", "");
+                const payment_to_vendor_txid = prompt("Please enter the txid for payment to vendor: ", "");
                 if (typeof(payment_to_vendor_txid)!=="string" || payment_to_vendor_txid.length<1) return;
                 const validated_buy_order_array = ecommerce.products.get_product_details_by_txid(txid);
                 console.log(validated_buy_order_array);
@@ -11122,4 +11285,6 @@
  <script src="https://stackpath.bootstrapcdn.com/bootstrap/4.3.1/js/bootstrap.min.js" integrity="sha384-JjSmVgyd0p3pXB1rRibZUAYoIIy6OrQ6VrjIEaFf/nJGzIxFDsf4x0xIM+B07jRM" crossorigin="anonymous"></script>
 
 <div id="renderList"></div>
+<div id="latestBuyOrdersList"></div>
+<div id="myPurchasedItemsList"></div>
 </html>
