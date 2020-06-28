@@ -8137,1339 +8137,1616 @@ Bitcoin.Util = {
 </script>
 
 <script id="floCrypto">
-  /* FLO Crypto Operators*/
-  const floCrypto = {
+    /* FLO Crypto Operators*/
+    const floCrypto = {
 
-    util:{
-        p: BigInteger("FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFEFFFFFC2F", 16),
+        util: {
+            p: BigInteger("FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFEFFFFFC2F", 16),
 
-        ecparams: EllipticCurve.getSECCurveByName("secp256k1"),
+            ecparams: EllipticCurve.getSECCurveByName("secp256k1"),
 
-        exponent1: function () {
-            return this.p.add(BigInteger.ONE).divide(BigInteger("4"))
-        },
+            exponent1: function () {
+                return this.p.add(BigInteger.ONE).divide(BigInteger("4"))
+            },
 
-        calculateY: function (x) {
-            let p = this.p;
-            let exp = this.exponent1();
-            // x is x value of public key in BigInteger format without 02 or 03 or 04 prefix
-            return x.modPow(BigInteger("3"), p).add(BigInteger("7")).mod(p).modPow(exp, p)
-        },
-        getUncompressedPublicKey: function (compressedPublicKey) {
-            const p = this.p;
-            // Fetch x from compressedPublicKey
-            let pubKeyBytes = Crypto.util.hexToBytes(compressedPublicKey);
-            const prefix = pubKeyBytes.shift() // remove prefix
-            let prefix_modulus = prefix % 2;
-            pubKeyBytes.unshift(0) // add prefix 0
-            let x = new BigInteger(pubKeyBytes)
-            let xDecimalValue = x.toString()
-            // Fetch y
-            let y = this.calculateY(x);
-            let yDecimalValue = y.toString();
-            // verify y value
-            let resultBigInt = y.mod(BigInteger("2"));
-            let check = resultBigInt.toString() % 2;
-            if (prefix_modulus !== check) {
-                yDecimalValue = y.negate().mod(p).toString();
+            calculateY: function (x) {
+                let p = this.p;
+                let exp = this.exponent1();
+                // x is x value of public key in BigInteger format without 02 or 03 or 04 prefix
+                return x.modPow(BigInteger("3"), p).add(BigInteger("7")).mod(p).modPow(exp, p)
+            },
+            getUncompressedPublicKey: function (compressedPublicKey) {
+                const p = this.p;
+                // Fetch x from compressedPublicKey
+                let pubKeyBytes = Crypto.util.hexToBytes(compressedPublicKey);
+                const prefix = pubKeyBytes.shift() // remove prefix
+                let prefix_modulus = prefix % 2;
+                pubKeyBytes.unshift(0) // add prefix 0
+                let x = new BigInteger(pubKeyBytes)
+                let xDecimalValue = x.toString()
+                // Fetch y
+                let y = this.calculateY(x);
+                let yDecimalValue = y.toString();
+                // verify y value
+                let resultBigInt = y.mod(BigInteger("2"));
+                let check = resultBigInt.toString() % 2;
+                if (prefix_modulus !== check) {
+                    yDecimalValue = y.negate().mod(p).toString();
+                }
+                return {
+                    x: xDecimalValue,
+                    y: yDecimalValue
+                };
+            },
+
+            getSenderPublicKeyString: function () {
+                privateKey = ellipticCurveEncryption.senderRandom();
+                senderPublicKeyString = ellipticCurveEncryption.senderPublicString(privateKey);
+                return {
+                    privateKey: privateKey,
+                    senderPublicKeyString: senderPublicKeyString
+                }
+            },
+
+            deriveSharedKeySender: function (receiverCompressedPublicKey, senderPrivateKey) {
+                try {
+                    let receiverPublicKeyString = this.getUncompressedPublicKey(receiverCompressedPublicKey);
+                    var senderDerivedKey = ellipticCurveEncryption.senderSharedKeyDerivation(
+                        receiverPublicKeyString.x, receiverPublicKeyString.y, senderPrivateKey);
+                    return senderDerivedKey;
+                } catch (error) {
+                    return new Error(error);
+                }
+            },
+
+            deriveReceiverSharedKey: function (senderPublicKeyString, receiverPrivateKey) {
+                return ellipticCurveEncryption.receiverSharedKeyDerivation(
+                    senderPublicKeyString.XValuePublicString, senderPublicKeyString.YValuePublicString,
+                    receiverPrivateKey);
+            },
+
+            getReceiverPublicKeyString: function (privateKey) {
+                return ellipticCurveEncryption.receiverPublicString(privateKey);
+            },
+
+            deriveSharedKeyReceiver: function (senderPublicKeyString, receiverPrivateKey) {
+                try {
+                    return ellipticCurveEncryption.receiverSharedKeyDerivation(senderPublicKeyString
+                        .XValuePublicString,
+                        senderPublicKeyString.YValuePublicString, receiverPrivateKey);
+
+                } catch (error) {
+                    return new Error(error);
+                }
+            },
+
+            wifToDecimal: function (pk_wif, isPubKeyCompressed = false) {
+                let pk = Bitcoin.Base58.decode(pk_wif)
+                pk.shift()
+                pk.splice(-4, 4)
+                //If the private key corresponded to a compressed public key, also drop the last byte (it should be 0x01).
+                if (isPubKeyCompressed == true) pk.pop()
+                pk.unshift(0)
+                privateKeyDecimal = BigInteger(pk).toString()
+                privateKeyHex = Crypto.util.bytesToHex(pk)
+                return {
+                    privateKeyDecimal: privateKeyDecimal,
+                    privateKeyHex: privateKeyHex
+                }
             }
+        },
+
+        //generate a random Interger within range
+        randInt: function (min, max) {
+            min = Math.ceil(min);
+            max = Math.floor(max);
+            return Math.floor(Math.random() * (max - min + 1)) + min;
+        },
+
+        //generate a random String within length (options : alphaNumeric chars only)
+        randString: function (length, alphaNumeric = false) {
+            var result = '';
+            if (alphaNumeric)
+                var characters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
+            else
+                var characters =
+                    'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789_+-./*?@#&$<>=[]{}():';
+            for (var i = 0; i < length; i++)
+                result += characters.charAt(Math.floor(Math.random() * characters.length));
+            return result;
+        },
+
+        //Encrypt Data using public-key
+        encryptData: function (data, receiverCompressedPublicKey) {
+            var senderECKeyData = this.util.getSenderPublicKeyString();
+            var senderDerivedKey = this.util.deriveSharedKeySender(receiverCompressedPublicKey, senderECKeyData
+                .privateKey);
+            let senderKey = senderDerivedKey.XValue + senderDerivedKey.YValue;
+            let secret = Crypto.AES.encrypt(data, senderKey);
             return {
-                x: xDecimalValue,
-                y: yDecimalValue
+                secret: secret,
+                senderPublicKeyString: senderECKeyData.senderPublicKeyString
             };
         },
 
-        getSenderPublicKeyString: function () {
-            privateKey = ellipticCurveEncryption.senderRandom();
-            senderPublicKeyString = ellipticCurveEncryption.senderPublicString(privateKey);
-            return {
-                privateKey: privateKey,
-                senderPublicKeyString: senderPublicKeyString
-            }
+        //Decrypt Data using private-key
+        decryptData: function (data, myPrivateKey) {
+            var receiverECKeyData = {};
+            if (typeof myPrivateKey !== "string") throw new Error("No private key found.");
+
+            let privateKey = this.util.wifToDecimal(myPrivateKey, true);
+            if (typeof privateKey.privateKeyDecimal !== "string") throw new Error(
+                "Failed to detremine your private key.");
+            receiverECKeyData.privateKey = privateKey.privateKeyDecimal;
+
+            var receiverDerivedKey = this.util.deriveReceiverSharedKey(data.senderPublicKeyString,
+                receiverECKeyData
+                .privateKey);
+
+            let receiverKey = receiverDerivedKey.XValue + receiverDerivedKey.YValue;
+            let decryptMsg = Crypto.AES.decrypt(data.secret, receiverKey);
+            return decryptMsg;
         },
 
-        deriveSharedKeySender: function (receiverCompressedPublicKey, senderPrivateKey) {
+        //Sign data using private-key
+        signData: function (data, privateKeyHex) {
+            var key = new Bitcoin.ECKey(privateKeyHex);
+            key.setCompressed(true);
+
+            var privateKeyArr = key.getBitcoinPrivateKeyByteArray();
+            privateKey = BigInteger.fromByteArrayUnsigned(privateKeyArr);
+            var messageHash = Crypto.SHA256(data);
+
+            var messageHashBigInteger = new BigInteger(messageHash);
+            var messageSign = Bitcoin.ECDSA.sign(messageHashBigInteger, key.priv);
+
+            var sighex = Crypto.util.bytesToHex(messageSign);
+            return sighex;
+        },
+
+        //Verify signatue of the data using public-key
+        verifySign: function (data, signatureHex, publicKeyHex) {
+            var msgHash = Crypto.SHA256(data);
+            var messageHashBigInteger = new BigInteger(msgHash);
+
+            var sigBytes = Crypto.util.hexToBytes(signatureHex);
+            var signature = Bitcoin.ECDSA.parseSig(sigBytes);
+
+            var publicKeyPoint = this.util.ecparams.getCurve().decodePointHex(publicKeyHex);
+
+            var verify = Bitcoin.ECDSA.verifyRaw(messageHashBigInteger, signature.r, signature.s,
+                publicKeyPoint);
+            return verify;
+        },
+
+        //Generates a new flo ID and returns private-key, public-key and floID
+        generateNewID: function () {
             try {
-                let receiverPublicKeyString = this.getUncompressedPublicKey(receiverCompressedPublicKey);
-                var senderDerivedKey = ellipticCurveEncryption.senderSharedKeyDerivation(
-                receiverPublicKeyString.x, receiverPublicKeyString.y, senderPrivateKey);
-                return senderDerivedKey;
-            } catch (error) {
-                return new Error(error);
+                var key = new Bitcoin.ECKey(false);
+                key.setCompressed(true);
+                return {
+                    floID: key.getBitcoinAddress(),
+                    pubKey: key.getPubKeyHex(),
+                    privKey: key.getBitcoinWalletImportFormat()
+                }
+            } catch (e) {
+                console.error(e);
             }
         },
 
-        deriveReceiverSharedKey: function (senderPublicKeyString, receiverPrivateKey) {
-            return ellipticCurveEncryption.receiverSharedKeyDerivation(
-                senderPublicKeyString.XValuePublicString, senderPublicKeyString.YValuePublicString,
-                receiverPrivateKey);
+        //Returns public-key from private-key
+        getPubKeyHex: function (privateKeyHex) {
+            if(!privateKeyHex)
+                return null;
+            var key = new Bitcoin.ECKey(privateKeyHex);
+            if (key.priv == null) 
+                return null;
+            key.setCompressed(true);
+            var pubkeyHex = key.getPubKeyHex();
+            return pubkeyHex;
         },
 
-        getReceiverPublicKeyString: function (privateKey) {
-            return ellipticCurveEncryption.receiverPublicString(privateKey);
-        },
-
-        deriveSharedKeyReceiver: function (senderPublicKeyString, receiverPrivateKey) {
+        //Returns flo-ID from public-key
+        getFloIDfromPubkeyHex: function (pubkeyHex) {
             try {
-                return ellipticCurveEncryption.receiverSharedKeyDerivation(senderPublicKeyString.XValuePublicString,
-                senderPublicKeyString.YValuePublicString, receiverPrivateKey);
-
-            } catch (error) {
-                return new Error(error);
+                var key = new Bitcoin.ECKey().setPub(pubkeyHex);
+                var floID = key.getBitcoinAddress();
+                return floID;
+            } catch (e) {
+                console.error(e);
             }
         },
 
-        wifToDecimal: function (pk_wif, isPubKeyCompressed = false) {
-            let pk = Bitcoin.Base58.decode(pk_wif)
-            pk.shift()
-            pk.splice(-4, 4)
-            //If the private key corresponded to a compressed public key, also drop the last byte (it should be 0x01).
-            if (isPubKeyCompressed == true) pk.pop()
-            pk.unshift(0)
-            privateKeyDecimal = BigInteger(pk).toString()
-            privateKeyHex = Crypto.util.bytesToHex(pk)
-            return {
-                privateKeyDecimal: privateKeyDecimal,
-                privateKeyHex: privateKeyHex
+        //Verify the private-key for the given public-key or flo-ID
+        verifyPrivKey: function (privateKeyHex, pubKey_floID, isfloID = true) {
+            try {
+                var key = new Bitcoin.ECKey(privateKeyHex);
+                if (key.priv == null)
+                    return false;
+                key.setCompressed(true);
+                if (isfloID && pubKey_floID == key.getBitcoinAddress())
+                    return true;
+                else if (!isfloID && pubKey_floID == key.getPubKeyHex())
+                    return true;
+                else
+                    return false;
+            } catch (e) {
+                console.error(e);
             }
-        }
-    },
+        },
 
-    //generate a random Interger within range
-    randInt: function(min, max) {
-        min = Math.ceil(min);
-        max = Math.floor(max);
-        return Math.floor(Math.random() * (max - min + 1)) + min;
-    },
-
-    //generate a random String within length (options : alphaNumeric chars only)
-    randString: function (length, alphaNumeric = false) {
-        var result = '';
-        if(alphaNumeric)
-            var characters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
-        else
-            var characters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789_+-./*?@#&$<>=[]{}():';
-        for ( var i = 0; i < length; i++ ) 
-            result += characters.charAt(Math.floor(Math.random() * characters.length));
-        return result;
-    },
-
-    //Encrypt Data using public-key
-    encryptData: function (data, receiverCompressedPublicKey) {
-      var senderECKeyData = this.util.getSenderPublicKeyString();
-      var senderDerivedKey = this.util.deriveSharedKeySender(receiverCompressedPublicKey, senderECKeyData.privateKey);
-      let senderKey = senderDerivedKey.XValue + senderDerivedKey.YValue;
-      let secret = Crypto.AES.encrypt(data, senderKey);
-      return {
-        secret: secret,
-        senderPublicKeyString: senderECKeyData.senderPublicKeyString
-      };
-    },
-
-    //Decrypt Data using private-key
-    decryptData: function (data, myPrivateKey) {
-      var receiverECKeyData = {};
-      if (typeof myPrivateKey !== "string") throw new Error("No private key found.");
-
-      let privateKey = this.util.wifToDecimal(myPrivateKey, true);
-      if (typeof privateKey.privateKeyDecimal !== "string") throw new Error(
-        "Failed to detremine your private key.");
-      receiverECKeyData.privateKey = privateKey.privateKeyDecimal;
-
-      var receiverDerivedKey = this.util.deriveReceiverSharedKey(data.senderPublicKeyString, receiverECKeyData
-        .privateKey);
-
-      let receiverKey = receiverDerivedKey.XValue + receiverDerivedKey.YValue;
-      let decryptMsg = Crypto.AES.decrypt(data.secret, receiverKey);
-      return decryptMsg;
-    },
-
-    //Sign data using private-key
-    signData: function (data, privateKeyHex) {
-      var key = new Bitcoin.ECKey(privateKeyHex);
-      key.setCompressed(true);
-
-      var privateKeyArr = key.getBitcoinPrivateKeyByteArray();
-      privateKey = BigInteger.fromByteArrayUnsigned(privateKeyArr);
-      var messageHash = Crypto.SHA256(data);
-
-      var messageHashBigInteger = new BigInteger(messageHash);
-      var messageSign = Bitcoin.ECDSA.sign(messageHashBigInteger, key.priv);
-
-      var sighex = Crypto.util.bytesToHex(messageSign);
-      return sighex;
-    },
-
-    //Verify signatue of the data using public-key
-    verifySign: function (data, signatureHex, publicKeyHex) {
-      var msgHash = Crypto.SHA256(data);
-      var messageHashBigInteger = new BigInteger(msgHash);
-
-      var sigBytes = Crypto.util.hexToBytes(signatureHex);
-      var signature = Bitcoin.ECDSA.parseSig(sigBytes);
-
-      var publicKeyPoint = this.util.ecparams.getCurve().decodePointHex(publicKeyHex);
-
-      var verify = Bitcoin.ECDSA.verifyRaw(messageHashBigInteger, signature.r, signature.s,
-        publicKeyPoint);
-      return verify;
-    },
-
-    //Generates a new flo ID and returns private-key, public-key and floID
-    generateNewID: function () {
-      try {
-        var key = new Bitcoin.ECKey(false);
-        key.setCompressed(true);
-        return {
-          floID: key.getBitcoinAddress(),
-          pubKey: key.getPubKeyHex(),
-          privKey: key.getBitcoinWalletImportFormat()
-        }
-      } catch (e) {
-        console.error(e);
-      }
-    },
-
-    //Returns public-key from private-key
-    getPubKeyHex: function (privateKeyHex) {
-      var key = new Bitcoin.ECKey(privateKeyHex);
-      if (key.priv == null) {
-        console.error("Invalid Private key");
-        return;
-      }
-      key.setCompressed(true);
-      var pubkeyHex = key.getPubKeyHex();
-      return pubkeyHex;
-    },
-
-    //Returns flo-ID from public-key
-    getFloIDfromPubkeyHex: function (pubkeyHex) {
-      try{
-        var key = new Bitcoin.ECKey().setPub(pubkeyHex);
-        var floID = key.getBitcoinAddress();
-        return floID;
-      }catch (e) {
-        console.error(e);
-      }
-    },
-
-    //Verify the private-key for the given public-key or flo-ID
-    verifyPrivKey: function (privateKeyHex, pubKey_floID, isfloID = true) {
-      try {
-        var key = new Bitcoin.ECKey(privateKeyHex);
-        if (key.priv == null)
-          return false;
-        key.setCompressed(true);
-        if (isfloID && pubKey_floID == key.getBitcoinAddress())
-          return true;
-        else if (!isfloID && pubKey_floID == key.getPubKeyHex())
-          return true;
-        else
-          return false;
-      } catch (e) {
-        console.error(e);
-      }
-    },
-
-    //Check if the given Address is valid or not
-    validateAddr: function (inpAddr) {
-      try {
-        var addr = new Bitcoin.Address(inpAddr);
-        return true;
-      } catch {
-        return false;
-      }
-    },
-
-    //Split the str using shamir's Secret and Returns the shares 
-    createShamirsSecretShares: function (str, total_shares, threshold_limit) {
-        try{
-            if (str.length > 0) {
-                var strHex = shamirSecretShare.str2hex(str);
-                var shares = shamirSecretShare.share(strHex, total_shares, threshold_limit);
-                return shares;
+        //Check if the given Address is valid or not
+        validateAddr: function (inpAddr) {
+            try {
+                var addr = new Bitcoin.Address(inpAddr);
+                return true;
+            } catch {
+                return false;
             }
-            return false;
-        }catch{
-            return false
-        }
-    },
+        },
 
-    //Verifies the shares and str
-    verifyShamirsSecret: function (sharesArray, str) {
-        return (str && this.retrieveShamirSecret(sharesArray) === str)
-    },
-
-    //Returns the retrived secret by combining the shamirs shares
-    retrieveShamirSecret: function (sharesArray) {
-        try{
-            if (sharesArray.length > 0) {
-                var comb = shamirSecretShare.combine(sharesArray.slice(0, sharesArray.length));
-                comb = shamirSecretShare.hex2str(comb);
-                return comb;
+        //Split the str using shamir's Secret and Returns the shares 
+        createShamirsSecretShares: function (str, total_shares, threshold_limit) {
+            try {
+                if (str.length > 0) {
+                    var strHex = shamirSecretShare.str2hex(str);
+                    var shares = shamirSecretShare.share(strHex, total_shares, threshold_limit);
+                    return shares;
+                }
+                return false;
+            } catch {
+                return false
             }
-            return false;
-        }catch{
-            return false
+        },
+
+        //Verifies the shares and str
+        verifyShamirsSecret: function (sharesArray, str) {
+            return (str && this.retrieveShamirSecret(sharesArray) === str)
+        },
+
+        //Returns the retrived secret by combining the shamirs shares
+        retrieveShamirSecret: function (sharesArray) {
+            try {
+                if (sharesArray.length > 0) {
+                    var comb = shamirSecretShare.combine(sharesArray.slice(0, sharesArray.length));
+                    comb = shamirSecretShare.hex2str(comb);
+                    return comb;
+                }
+                return false;
+            } catch {
+                return false;
+            }
         }
     }
-  }
 </script>
 <script id="floBlockchainAPI">
-  /* FLO Blockchain Operator to send/receive data from blockchain using API calls*/
-  const floBlockchainAPI = {
+    /* FLO Blockchain Operator to send/receive data from blockchain using API calls*/
+    const floBlockchainAPI = {
 
-    util: {
-        serverList: floGlobals.apiURL[floGlobals.blockchain].slice(0),
-        curPos: floCrypto.randInt(0, floGlobals.apiURL[floGlobals.blockchain].length),
-        fetch_retry: function(apicall){
-            return new Promise((resolve,reject) => {
-                this.serverList.splice(this.curPos, 1);
-                this.curPos = floCrypto.randInt(0, this.serverList.length)
-                this.fetch_api(apicall)
-                    .then(result => resolve(result))
-                    .catch(error => reject(error));
-            })
-        },
-        fetch_api: function(apicall){
-            return new Promise((resolve, reject) => {
-                if(this.serverList.length === 0)
-                    reject("No floSight server working")
-                else{
-                    fetch(this.serverList[this.curPos] + apicall).then(response  => {
-                        if(response.ok)
-                            response.json().then(data => resolve(data));
-                        else{
+        util: {
+            serverList: floGlobals.apiURL[floGlobals.blockchain].slice(0),
+            curPos: floCrypto.randInt(0, floGlobals.apiURL[floGlobals.blockchain].length),
+            fetch_retry: function (apicall) {
+                return new Promise((resolve, reject) => {
+                    this.serverList.splice(this.curPos, 1);
+                    this.curPos = floCrypto.randInt(0, this.serverList.length)
+                    this.fetch_api(apicall)
+                        .then(result => resolve(result))
+                        .catch(error => reject(error));
+                })
+            },
+            fetch_api: function (apicall) {
+                return new Promise((resolve, reject) => {
+                    if (this.serverList.length === 0)
+                        reject("No floSight server working")
+                    else {
+                        fetch(this.serverList[this.curPos] + apicall).then(response => {
+                            if (response.ok)
+                                response.json().then(data => resolve(data));
+                            else {
+                                this.fetch_retry(apicall)
+                                    .then(result => resolve(result))
+                                    .catch(error => reject(error));
+                            }
+                        }).catch(error => {
                             this.fetch_retry(apicall)
                                 .then(result => resolve(result))
                                 .catch(error => reject(error));
+                        })
+                    }
+                })
+            }
+        },
+
+        //Promised function to get data from API
+        promisedAPI: function (apicall) {
+            return new Promise((resolve, reject) => {
+                console.log(apicall)
+                this.util.fetch_api(apicall)
+                    .then(result => resolve(result))
+                    .catch(error => reject(error));
+            });
+        },
+
+        //Get balance for the given Address
+        getBalance: function (addr) {
+            return new Promise((resolve, reject) => {
+                this.promisedAPI(`api/addr/${addr}/balance`)
+                    .then(balance => resolve(parseFloat(balance)))
+                    .catch(error => reject(error));
+            });
+        },
+
+        //Write Data into blockchain
+        writeData: function (senderAddr, data, privKey, receiverAddr = floGlobals.adminID) {
+            return new Promise((resolve, reject) => {
+                if (typeof data != "string")
+                    data = JSON.stringify(data);
+                this.sendTx(senderAddr, receiverAddr, floGlobals.sendAmt, privKey, data)
+                    .then(txid => resolve(txid))
+                    .catch(error => reject(error))
+            });
+        },
+
+        //Send Tx to blockchain 
+        sendTx: function (senderAddr, receiverAddr, sendAmt, privKey, floData = '') {
+            return new Promise((resolve, reject) => {
+                if (!floCrypto.validateAddr(senderAddr))
+                    reject(`Invalid address : ${senderAddr}`);
+                else if (!floCrypto.validateAddr(receiverAddr))
+                    reject(`Invalid address : ${receiverAddr}`);
+                if (privKey.length < 1 || !floCrypto.verifyPrivKey(privKey, senderAddr))
+                    reject("Invalid Private key!");
+                else if (typeof sendAmt !== 'number' || sendAmt <= 0)
+                    reject(`Invalid sendAmt : ${sendAmt}`);
+                else {
+                    var trx = bitjs.transaction();
+                    var utxoAmt = 0.0;
+                    var fee = floGlobals.fee;
+                    this.promisedAPI(`api/addr/${senderAddr}/utxo`).then(utxos => {
+                        for (var i = utxos.length - 1;
+                            (i >= 0) && (utxoAmt < sendAmt + fee); i--) {
+                            if (utxos[i].confirmations) {
+                                trx.addinput(utxos[i].txid, utxos[i].vout, utxos[i]
+                                    .scriptPubKey)
+                                utxoAmt += utxos[i].amount;
+                            } else break;
                         }
-                    }).catch(error => {
-                        this.fetch_retry(apicall)
-                            .then(result => resolve(result))
-                            .catch(error => reject(error));
-                    })
+                        if (utxoAmt < sendAmt + fee)
+                            reject("Insufficient balance!");
+                        else {
+                            trx.addoutput(receiverAddr, sendAmt);
+                            var change = utxoAmt - sendAmt - fee;
+                            if (change > 0)
+                                trx.addoutput(senderAddr, change);
+                            trx.addflodata(floData.replace(/\n/g,' '));
+                            var signedTxHash = trx.sign(privKey, 1);
+                            this.broadcastTx(signedTxHash)
+                                .then(txid => resolve(txid))
+                                .catch(error => reject(error))
+                        }
+                    }).catch(error => reject(error))
+                }
+            });
+        },
+
+        //merge all UTXOs of a given floID into a single UTXO
+        mergeUTXOs: function (floID, privKey, floData = '') {
+            return new Promise((resolve, reject) => {
+                if (!floCrypto.validateAddr(floID))
+                    return reject(`Invalid floID`);
+                if (!floCrypto.verifyPrivKey(privKey, floID))
+                    return reject("Invalid Private Key")
+
+                var trx = bitjs.transaction();
+                var utxoAmt = 0.0;
+                var fee = floGlobals.fee;
+                this.promisedAPI(`api/addr/${floID}/utxo`).then(utxos => {
+                    for (var i = utxos.length - 1; i >= 0; i--) {
+                        if (utxos[i].confirmations) {
+                            trx.addinput(utxos[i].txid, utxos[i].vout, utxos[i]
+                                .scriptPubKey)
+                            utxoAmt += utxos[i].amount;
+                        }
+                    }
+                    trx.addoutput(floID, utxoAmt - fee);
+                    trx.addflodata(floData.replace(/\n/g,' '));
+                    var signedTxHash = trx.sign(privKey, 1);
+                    this.broadcastTx(signedTxHash)
+                        .then(txid => resolve(txid))
+                        .catch(error => reject(error))
+                }).catch(error => reject(error))
+            })
+        },
+
+        /**Write data into blockchain from (and/or) to multiple floID
+         * @param  {Array} senderPrivKeys List of sender private-keys
+         * @param  {string} data FLO data of the txn
+         * @param  {Array} receivers List of receivers
+         * @param  {boolean} preserveRatio (optional) preserve ratio or equal contribution
+         * @return {Promise}
+         */
+        writeDataMultiple: function (senderPrivKeys, data, receivers = [floGlobals.adminID], preserveRatio = true){
+            return new Promise((resolve, reject) => {
+                if (!Array.isArray(senderPrivKeys)) 
+                    return reject("Invalid senderPrivKeys: SenderPrivKeys must be Array")
+                if(!preserveRatio){
+                    let tmp = {};
+                    let amount = (floGlobals.sendAmt * receivers.length) / senderPrivKeys.length;
+                    senderPrivKeys.forEach(key => tmp[key] = amount);
+                    senderPrivKeys = tmp
+                }
+                if (!Array.isArray(receivers))
+                    return reject("Invalid receivers: Receivers must be Array")
+                else {
+                    let tmp = {};
+                    let amount = floGlobals.sendAmt;
+                    receivers.forEach(floID => tmp[floID] = amount);
+                    receivers = tmp
+                }
+                if (typeof data != "string")
+                    data = JSON.stringify(data);
+                this.sendTxMultiple(senderPrivKeys, receivers, data)
+                    .then(txid => resolve(txid))
+                    .catch(error => reject(error))
+            })
+        },
+
+        /**Send Tx from (and/or) to multiple floID
+         * @param  {Array or Object} senderPrivKeys List of sender private-key (optional: with coins to be sent)
+         * @param  {Object} receivers List of receivers with respective amount to be sent
+         * @param  {string} floData FLO data of the txn
+         * @return {Promise}
+         */
+        sendTxMultiple: function (senderPrivKeys, receivers, floData = '') {
+            return new Promise((resolve, reject) => {
+                
+                let senders = {}, preserveRatio; 
+                //check for argument validations
+                try{
+                    let invalids = {
+                        InvalidSenderPrivKeys: [],
+                        InvalidSenderAmountFor: [],
+                        InvalidReceiverIDs: [],
+                        InvalidReceiveAmountFor: []
+                    }
+                    let inputVal = 0, outputVal = 0;
+                    //Validate sender privatekeys (and send amount if passed)
+                    //conversion when only privateKeys are passed (preserveRatio mode)
+                    if(Array.isArray(senderPrivKeys)){  
+                        senderPrivKeys.forEach(key => {
+                            try{
+                                if(!key)
+                                    invalids.InvalidSenderPrivKeys.push(key);
+                                else{
+                                    let floID = floCrypto.getFloIDfromPubkeyHex(floCrypto.getPubKeyHex(key));
+                                    senders[floID] = {
+                                        wif: key
+                                    }
+                                }
+                            }catch(error){
+                                invalids.InvalidSenderPrivKeys.push(key)
+                            }
+                        })
+                        preserveRatio = true;
+                    }
+                    //conversion when privatekeys are passed with send amount
+                    else{
+                        for(let key in senderPrivKeys){
+                            try{
+                                if(!key)
+                                    invalids.InvalidSenderPrivKeys.push(key);
+                                else{
+                                    if(typeof senderPrivKeys[key] !== 'number' || senderPrivKeys[key] <= 0)
+                                        invalids.InvalidSenderAmountFor.push(key)
+                                    else
+                                        inputVal += senderPrivKeys[key];
+                                    let floID = floCrypto.getFloIDfromPubkeyHex(floCrypto.getPubKeyHex(key));
+                                    senders[floID] = {
+                                        wif: key,
+                                        coins: senderPrivKeys[key]
+                                    }
+                                }
+                            }catch(error){
+                                invalids.InvalidSenderPrivKeys.push(key)
+                            }
+                        }
+                        preserveRatio = false;
+                    }
+                    //Validate the receiver IDs and receive amount
+                    for (let floID in receivers) {
+                        if (!floCrypto.validateAddr(floID))
+                            invalids.InvalidReceiverIDs.push(floID)
+                        if (typeof receivers[floID] !== 'number' || receivers[floID] <= 0)
+                            invalids.InvalidReceiveAmountFor.push(floID)
+                        else
+                            outputVal += receivers[floID];
+                    }
+                    //Reject if any invalids are found
+                    for (let i in invalids)
+                        if (!invalids[i].length)
+                            delete invalids[i];
+                    if (Object.keys(invalids).length)
+                        return reject(invalids);
+                    //Reject if given inputVal and outputVal are not equal
+                    if(!preserveRatio && inputVal != outputVal)
+                        return reject(`Input Amount (${inputVal}) not equal to Output Amount (${outputVal})`)
+                }catch(error){
+                    return reject(error)
+                }
+                //Get balance of senders
+                let promises = []
+                for (let floID in senders)
+                    promises.push(this.getBalance(floID))
+                Promise.all(promises).then(results => {
+                    let totalBalance = 0,
+                        totalFee = floGlobals.fee,
+                        balance = {};
+                    //Divide fee among sender if not for preserveRatio
+                    if(!preserveRatio) 
+                        var dividedFee = totalFee / Object.keys(senders).length;
+                    //Check if balance of each sender is sufficient enough
+                    let insufficient = [];
+                    for (let floID in senders) {
+                        balance[floID] = parseFloat(results.shift());
+                        if (isNaN(balance[floID]) || (preserveRatio && balance[floID] <= totalFee) || (!preserveRatio && balance[floID] < senders[floID].coins + dividedFee))
+                            insufficient.push(floID)
+                        totalBalance += balance[floID];
+                    }
+                    if (insufficient.length)
+                        return reject({InsufficientBalance: insufficient})
+                    //Calculate totalSentAmount and check if totalBalance is sufficient
+                    let totalSendAmt = totalFee;
+                    for (floID in receivers)
+                        totalSendAmt += receivers[floID];
+                    if (totalBalance < totalSendAmt)
+                        return reject("Insufficient total Balance")
+                    //Get the UTXOs of the senders
+                    let promises = []
+                    for (floID in senders)
+                        promises.push(this.promisedAPI(`api/addr/${floID}/utxo`))
+                    Promise.all(promises).then(results => {
+                        let wifSeq = [];
+                        var trx = bitjs.transaction();
+                        for (floID in senders) {
+                            let utxos = results.shift();
+                            let sendAmt;
+                            if(preserveRatio){
+                                let ratio = (balance[floID] / totalBalance);
+                                sendAmt = totalSendAmt * ratio;
+                            } else 
+                                sendAmt = senders[floID].coins + dividedFee;
+                            let wif = senders[floID].wif;
+                            let utxoAmt = 0.0;
+                            for (let i = utxos.length - 1;
+                                (i >= 0) && (utxoAmt < sendAmt); i--) {
+                                if (utxos[i].confirmations) {
+                                    trx.addinput(utxos[i].txid, utxos[i].vout, utxos[i]
+                                        .scriptPubKey)
+                                    wifSeq.push(wif);
+                                    utxoAmt += utxos[i].amount;
+                                }
+                            }
+                            if (utxoAmt < sendAmt)
+                                return reject("Insufficient balance:" + floID);
+                            let change = (utxoAmt - sendAmt);
+                            if (change > 0)
+                                trx.addoutput(floID, change);
+                        }
+                        for (floID in receivers)
+                            trx.addoutput(floID, receivers[floID]);
+                        trx.addflodata(floData.replace(/\n/g,' '));
+                        for (let i = 0; i < wifSeq.length; i++)
+                            trx.signinput(i, wifSeq[i], 1);
+                        var signedTxHash = trx.serialize();
+                        this.broadcastTx(signedTxHash)
+                            .then(txid => resolve(txid))
+                            .catch(error => reject(error))
+                    }).catch(error => reject(error))
+                }).catch(error => reject(error))
+            })
+        },
+
+        //Broadcast signed Tx in blockchain using API
+        broadcastTx: function (signedTxHash) {
+            return new Promise((resolve, reject) => {
+                var request = new XMLHttpRequest();
+                var url = this.util.serverList[this.util.curPos] + 'api/tx/send';
+                console.log(url)
+                if (signedTxHash.length < 1)
+                    reject("Empty Signature");
+                else {
+                    var params = `{"rawtx":"${signedTxHash}"}`;
+                    request.open('POST', url, true);
+                    //Send the proper header information along with the request
+                    request.setRequestHeader('Content-type', 'application/json');
+                    request.onload = function () {
+                        if (request.readyState == 4 && request.status == 200) {
+                            console.log(request.response);
+                            resolve(JSON.parse(request.response).txid.result);
+                        } else
+                            reject(request.responseText);
+                    }
+                    request.send(params);
                 }
             })
+        },
+
+        //Read Txs of Address between from and to
+        readTxs: function (addr, from, to) {
+            return new Promise((resolve, reject) => {
+                this.promisedAPI(`api/addrs/${addr}/txs?from=${from}&to=${to}`)
+                    .then(response => resolve(response))
+                    .catch(error => reject(error))
+            });
+        },
+
+        //Read All Txs of Address (newest first)
+        readAllTxs: function (addr) {
+            return new Promise((resolve, reject) => {
+                this.promisedAPI(`api/addrs/${addr}/txs?from=0&to=1`).then(response => {
+                    this.promisedAPI(`api/addrs/${addr}/txs?from=0&to=${response.totalItems}0`)
+                        .then(response => resolve(response.items))
+                        .catch(error => reject(error));
+                }).catch(error => reject(error))
+            });
+        },
+
+        /*Read flo Data from txs of given Address
+        options can be used to filter data
+        limit       : maximum number of filtered data (default = 1000, negative  = no limit)
+        ignoreOld   : ignore old txs (default = 0)
+        sentOnly    : filters only sent data
+        pattern     : filters data that starts with a pattern
+        contains    : filters data that contains a string
+        filter      : custom filter funtion for floData (eg . filter: d => {return d[0] == '$'})
+        */
+        readData: function (addr, options = {}) {
+            options.limit = options.limit | 1000
+            options.ignoreOld = options.ignoreOld | 0
+            return new Promise((resolve, reject) => {
+                this.promisedAPI(`api/addrs/${addr}/txs?from=0&to=1`).then(response => {
+                    var newItems = response.totalItems - options.ignoreOld;
+                    this.promisedAPI(`api/addrs/${addr}/txs?from=0&to=${newItems*2}`).then(
+                        response => {
+                            if (options.limit <= 0)
+                                options.limit = response.items.length;
+                            var filteredData = [];
+                            for (i = 0; i < (response.totalItems - options.ignoreOld) &&
+                                filteredData.length < options.limit; i++) {
+                                if (options.sentOnly && response.items[i].vin[0].addr !==
+                                    addr)
+                                    continue;
+                                if (options.pattern && !response.items[i].floData
+                                    .startsWith(options.pattern, 0) && !response.items[i]
+                                    .floData.startsWith(options.pattern, 2))
+                                    continue;
+                                if (options.contains && !response.items[i].floData.includes(
+                                        options.contains))
+                                    continue;
+                                if (options.filter && !options.filter(response.items[i]
+                                        .floData))
+                                    continue;
+                                filteredData.push(response.items[i].floData);
+                            }
+                            resolve({
+                                totalTxs: response.totalItems,
+                                data: filteredData
+                            });
+                        }).catch(error => {
+                        reject(error);
+                    });
+                }).catch(error => {
+                    reject(error);
+                });
+            });
         }
-    },
-
-    //Promised function to get data from API
-    promisedAPI: function (apicall) {
-      return new Promise((resolve, reject) => {
-        console.log(apicall)
-        this.util.fetch_api(apicall)
-            .then(result => resolve(result))
-            .catch(error => reject(error));
-      });
-    },
-
-    //Get balance for the given Address
-    getBalance: function (addr) {
-      return new Promise((resolve, reject) => {
-        this.promisedAPI(`api/addr/${addr}/balance`)
-            .then(balance => resolve(parseFloat(balance)))
-            .catch(error => reject(error));
-      });
-    },
-
-    //Write Data into blockchain
-    writeData: function (senderAddr, Data, PrivKey, receiverAddr = floGlobals.adminID) {
-      return new Promise((resolve, reject) => {
-        this.sendTx(senderAddr, receiverAddr, floGlobals.sendAmt, PrivKey, Data)
-            .then(txid => resolve(txid))
-            .catch(error => reject(error))
-      });
-    },
-
-    //Send Tx to blockchain 
-    sendTx: function (senderAddr, receiverAddr, sendAmt, PrivKey, floData = '') {
-      return new Promise((resolve, reject) => {
-        if (!floCrypto.validateAddr(senderAddr))
-          reject(`Invalid address : ${senderAddr}`);
-        else if (!floCrypto.validateAddr(receiverAddr))
-          reject(`Invalid address : ${receiverAddr}`);
-        if (PrivKey.length < 1 || !floCrypto.verifyPrivKey(PrivKey, senderAddr))
-          reject("Invalid Private key!");
-        else if (typeof sendAmt !== 'number' || sendAmt <= 0)
-          reject(`Invalid sendAmt : ${sendAmt}`);
-        else {
-          var trx = bitjs.transaction();
-          var utxoAmt = 0.0;
-          var fee = floGlobals.fee;
-          this.promisedAPI(`api/addr/${senderAddr}/utxo`).then(utxos => {
-            for (var i = utxos.length - 1;
-              (i >= 0) && (utxoAmt < sendAmt + fee); i--) {
-              if (utxos[i].confirmations) {
-                trx.addinput(utxos[i].txid, utxos[i].vout, utxos[i].scriptPubKey)
-                utxoAmt += utxos[i].amount;
-              } else break;
-            }
-            if (utxoAmt < sendAmt + fee)
-              reject("Insufficient balance!");
-            else {
-              trx.addoutput(receiverAddr, sendAmt);
-              var change = utxoAmt - sendAmt - fee;
-              if (change > 0)
-                trx.addoutput(senderAddr, change);
-              trx.addflodata(floData);
-              var signedTxHash = trx.sign(PrivKey, 1);
-              this.broadcastTx(signedTxHash)
-                .then(txid => resolve(txid))
-                .catch(error => reject(error))
-            }
-          }).catch(error => reject(error))
-        }
-      });
-    },
-
-    //Broadcast signed Tx in blockchain using API
-    broadcastTx: function (signedTxHash) {
-      return new Promise((resolve, reject) => {
-        var request = new XMLHttpRequest();
-        var url = this.util.serverList[this.util.curPos] + 'api/tx/send';
-        if (signedTxHash.length < 1)
-          reject("Empty Signature");
-        else {
-          var params = `{"rawtx":"${signedTxHash}"}`;
-          request.open('POST', url, true);
-          //Send the proper header information along with the request
-          request.setRequestHeader('Content-type', 'application/json');
-          request.onload = function () {
-            if (request.readyState == 4 && request.status == 200) {
-              console.log(request.response);
-              resolve(JSON.parse(request.response).txid.result);
-            } else
-              reject(request.responseText);
-          }
-          request.send(params);
-        }
-      })
-    },
-
-    //Read Txs of Address between from and to
-    readTxs: function (addr, from, to) {
-      return new Promise((resolve, reject) => {
-        this.promisedAPI(`api/addrs/${addr}/txs?from=${from}&to=${to}`)
-            .then(response => resolve(response))
-            .catch(error => reject(error))
-      });
-    },
-
-    //Read All Txs of Address (newest first)
-    readAllTxs: function (addr) {
-      return new Promise((resolve, reject) => {
-        this.promisedAPI(`api/addrs/${addr}/txs?from=0&to=1`).then(response => {
-          this.promisedAPI(`api/addrs/${addr}/txs?from=0&to=${response.totalItems}0`)
-            .then(response => resolve(response.items))
-            .catch(error => reject(error));
-        }).catch(error => reject(error))
-      });
-    },
-
-    /*Read flo Data from txs of given Address
-    options can be used to filter data
-    limit       : maximum number of filtered data (default = 1000, negative  = no limit)
-    ignoreOld   : ignore old txs (default = 0)
-    sentOnly    : filters only sent data
-    pattern     : filters data that starts with a pattern
-    contains    : filters data that contains a string
-    filter      : custom filter funtion for floData (eg . filter: d => {return d[0] == '$'})
-    */
-    readData: function(addr,options = {}){
-        options.limit = options.limit | 1000
-        options.ignoreOld = options.ignoreOld | 0
-        return new Promise((resolve, reject) => {
-        this.promisedAPI(`api/addrs/${addr}/txs?from=0&to=1`).then(response => {
-          var newItems = response.totalItems - options.ignoreOld;
-          this.promisedAPI(`api/addrs/${addr}/txs?from=0&to=${newItems*2}`).then(response => {
-              if (options.limit <= 0) 
-                options.limit = response.items.length;
-              var filteredData = [];
-              for (i = 0; i < (response.totalItems - options.ignoreOld) && filteredData.length < options.limit; i++){
-                if(options.sentOnly && response.items[i].vin[0].addr !== addr)
-                    continue;
-                if(options.pattern && !response.items[i].floData.startsWith(options.pattern, 0) && !response.items[i].floData.startsWith(options.pattern, 2))
-                    continue;
-                if(options.contains && !response.items[i].floData.includes(options.contains))
-                    continue;
-                if(options.filter && !options.filter(response.items[i].floData))
-                    continue;
-                filteredData.push(response.items[i].floData);
-              }
-              resolve({totalTxs:response.totalItems , data:filteredData});
-          }).catch(error => {
-            reject(error);
-          });
-        }).catch(error => {
-          reject(error);
-        });
-      });
     }
-  }
 </script>
 <script id="floSupernode">
-  /* flo Supernode Operators to send/receive data from supernodes using websocket */
-  const floSupernode = {
+    /* flo Supernode Operators to send/receive data from supernodes using websocket */
+    const floSupernode = {
 
-    //kBucket object 
-    kBucket: {
-      supernodeKBucket: null,
-      decodeBase58Address: function (address) {
-        let k = bitjs.Base58.decode(address)
-        k.shift()
-        k.splice(-4, 4)
-        return Crypto.util.bytesToHex(k)
-      },
-      floIdToKbucketId: function (address) {
-        const decodedId = this.decodeBase58Address(address);
-        const nodeIdBigInt = new BigInteger(decodedId, 16);
-        const nodeIdBytes = nodeIdBigInt.toByteArrayUnsigned();
-        const nodeIdNewInt8Array = new Uint8Array(nodeIdBytes);
-        return nodeIdNewInt8Array;
-      },
-      launch: function (superNodeList = Object.keys(floGlobals.supernodes), master_floID = floGlobals.adminID) {
-        return new Promise((resolve, reject) => {
-          try {
-            const SuKBucketId = this.floIdToKbucketId(master_floID);
-            const SukbOptions = {
-              localNodeId: SuKBucketId
-            }
-            this.supernodeKBucket = new BuildKBucket(SukbOptions);
-            for (var i = 0; i < superNodeList.length; i++) {
-              this.addNewNode(superNodeList[i])
-            }
-            resolve('SuperNode KBucket formed');
-          } catch (error) {
-            reject(error);
-          }
-        });
-      },
-      addContact: function (id, floID, KB = this.supernodeKBucket) {
-        const contact = {
-          id: id,
-          floID: floID
-        };
-        KB.add(contact)
-      },
-      addNewNode: function (address, KB = this.supernodeKBucket) {
-        let decodedId = address;
-        try {
-          decodedId = this.floIdToKbucketId(address);
-        } catch (e) {
-          decodedId = address;
-        }
-        this.addContact(decodedId, address, KB);
-      },
-      isNodePresent: function (flo_id, KB = this.supernodeKBucket) {
-        let kArray = KB.toArray();
-        let kArrayFloIds = kArray.map(k => k.floID);
-        if (kArrayFloIds.includes(flo_id))
-            return true;
-        else
-            return false;
-      },
- 
-      getInnerNodes: function(flo_addr1, flo_addr2, KB = this.supernodeKBucket){
-        return new Promise((resolve, reject) => {
-          let kArrayFloIds = KB.toArray().map(k => k.floID);
-          var innerNodes = []
-          if(kArrayFloIds.includes(flo_addr1) && kArrayFloIds.includes(flo_addr2)){
-            for(var i = kArrayFloIds.indexOf(flo_addr1); i!= flo_addr2; i++){
-                if(i >= kArrayFloIds.length)
-                    i = -1
+        //kBucket object 
+        kBucket: {
+            supernodeKBucket: null,
+            decodeBase58Address: function (address) {
+                let k = bitjs.Base58.decode(address)
+                k.shift()
+                k.splice(-4, 4)
+                return Crypto.util.bytesToHex(k)
+            },
+            floIdToKbucketId: function (address) {
+                const decodedId = this.decodeBase58Address(address);
+                const nodeIdBigInt = new BigInteger(decodedId, 16);
+                const nodeIdBytes = nodeIdBigInt.toByteArrayUnsigned();
+                const nodeIdNewInt8Array = new Uint8Array(nodeIdBytes);
+                return nodeIdNewInt8Array;
+            },
+            launch: function (superNodeList = Object.keys(floGlobals.supernodes), master_floID = floGlobals
+            .adminID) {
+                return new Promise((resolve, reject) => {
+                    try {
+                        const SuKBucketId = this.floIdToKbucketId(master_floID);
+                        const SukbOptions = {
+                            localNodeId: SuKBucketId
+                        }
+                        this.supernodeKBucket = new BuildKBucket(SukbOptions);
+                        for (var i = 0; i < superNodeList.length; i++) {
+                            this.addNewNode(superNodeList[i])
+                        }
+                        resolve('SuperNode KBucket formed');
+                    } catch (error) {
+                        reject(error);
+                    }
+                });
+            },
+            addContact: function (id, floID, KB = this.supernodeKBucket) {
+                const contact = {
+                    id: id,
+                    floID: floID
+                };
+                KB.add(contact)
+            },
+            addNewNode: function (address, KB = this.supernodeKBucket) {
+                let decodedId = address;
+                try {
+                    decodedId = this.floIdToKbucketId(address);
+                } catch (e) {
+                    decodedId = address;
+                }
+                this.addContact(decodedId, address, KB);
+            },
+            isNodePresent: function (flo_id, KB = this.supernodeKBucket) {
+                let kArray = KB.toArray();
+                let kArrayFloIds = kArray.map(k => k.floID);
+                if (kArrayFloIds.includes(flo_id))
+                    return true;
                 else
-                    innerNodes.push(kArrayFloIds[i])
+                    return false;
+            },
+
+            getInnerNodes: function (flo_addr1, flo_addr2, KB = this.supernodeKBucket) {
+                return new Promise((resolve, reject) => {
+                    let kArrayFloIds = KB.toArray().map(k => k.floID);
+                    var innerNodes = []
+                    if (kArrayFloIds.includes(flo_addr1) && kArrayFloIds.includes(flo_addr2)) {
+                        for (var i = kArrayFloIds.indexOf(flo_addr1); i != flo_addr2; i++) {
+                            if (i >= kArrayFloIds.length)
+                                i = -1
+                            else
+                                innerNodes.push(kArrayFloIds[i])
+                        }
+                        resolve(innerNodes)
+                    } else
+                        reject('Given nodes are not in KBucket')
+                });
+            },
+
+            getOuterNodes: function (flo_addr1, flo_addr2, KB = this.supernodeKBucket) {
+                return new Promise((resolve, reject) => {
+                    let kArrayFloIds = KB.toArray().map(k => k.floID);
+                    var outterNodes = []
+                    if (kArrayFloIds.includes(flo_addr1) && kArrayFloIds.includes(flo_addr2)) {
+                        for (var i = kArrayFloIds.indexOf(flo_addr2); i != flo_addr1; i++) {
+                            if (i >= kArrayFloIds.length)
+                                i = -1
+                            else
+                                outterNodes.push(kArrayFloIds[i])
+                        }
+                        resolve(outterNodes)
+                    } else
+                        reject('Given nodes are not in KBucket')
+                });
+            },
+
+            getPrevSupernode: function (flo_addr, n = 1, KB = this.supernodeKBucket) {
+                return new Promise((resolve, reject) => {
+                    try {
+                        let kArrayFloIds = KB.toArray().map(k => k.floID);
+                        let pos = kArrayFloIds.indexOf(flo_addr)
+                        var prevSupernode = []
+                        for (var i = 1; i <= n; i++) {
+                            if (pos - i < 0)
+                                var prev = pos - i + kArrayFloIds.length
+                            else
+                                var prev = pos - i
+                            prevSupernode.push(kArrayFloIds[prev])
+                        }
+                        resolve(prevSupernode);
+                    } catch (error) {
+                        reject(error);
+                    }
+                });
+            },
+
+            getNextSupernode: function (flo_addr, n = 1, KB = this.supernodeKBucket) {
+                return new Promise((resolve, reject) => {
+                    try {
+                        let kArrayFloIds = KB.toArray().map(k => k.floID);
+                        let pos = kArrayFloIds.indexOf(flo_addr)
+                        var nextSupernode = []
+                        for (var i = 1; i <= n; i++) {
+                            if (pos + i >= kArrayFloIds.length)
+                                var next = pos + i - kArrayFloIds.length
+                            else
+                                var next = pos + i
+                            nextSupernode.push(kArrayFloIds[next])
+                        }
+                        resolve(nextSupernode);
+                    } catch (error) {
+                        reject(error);
+                    }
+                });
+            },
+
+            determineClosestSupernode: function (flo_addr, n = 1, KB = this.supernodeKBucket) {
+                return new Promise((resolve, reject) => {
+                    try {
+                        let isFloIdUint8 = flo_addr instanceof Uint8Array;
+                        if (!isFloIdUint8)
+                            flo_addr = this.floIdToKbucketId(flo_addr);
+                        var closestSupernode = KB.closest(flo_addr, n);
+                        closestSupernode = closestSupernode.map(k => k.floID);
+                        resolve(closestSupernode);
+                    } catch (error) {
+                        reject(error);
+                    }
+                });
             }
-            resolve(innerNodes)
-          }else
-            reject('Given nodes are not in KBucket')
-        });
-      },
+        },
 
-      getOuterNodes: function(flo_addr1, flo_addr2, KB = this.supernodeKBucket){
-        return new Promise((resolve, reject) => {
-          let kArrayFloIds = KB.toArray().map(k => k.floID);
-          var outterNodes = []
-          if(kArrayFloIds.includes(flo_addr1) && kArrayFloIds.includes(flo_addr2)){
-            for(var i = kArrayFloIds.indexOf(flo_addr2); i!= flo_addr1; i++){
-                if(i >= kArrayFloIds.length)
-                    i = -1
-                else
-                    outterNodes.push(kArrayFloIds[i])
-            }
-            resolve(outterNodes)
-          }else
-            reject('Given nodes are not in KBucket')
-        });
-      },
-
-      getPrevSupernode: function(flo_addr, n = 1, KB = this.supernodeKBucket){
-        return new Promise((resolve, reject) => {
-          try {
-            let kArrayFloIds = KB.toArray().map(k => k.floID);
-            let pos = kArrayFloIds.indexOf(flo_addr)
-            var prevSupernode = []
-            for(var i = 1; i <= n; i++){
-                if(pos - i < 0)
-                    var prev = pos - i + kArrayFloIds.length
-                else
-                    var prev = pos - i
-                prevSupernode.push(kArrayFloIds[prev])
-            }
-            resolve(prevSupernode);
-          } catch (error) {
-            reject(error);
-          }
-        });
-      },
-
-      getNextSupernode: function(flo_addr, n = 1, KB = this.supernodeKBucket){
-        return new Promise((resolve, reject) => {
-          try {
-            let kArrayFloIds = KB.toArray().map(k => k.floID);
-            let pos = kArrayFloIds.indexOf(flo_addr)
-            var nextSupernode = []
-            for(var i = 1; i <= n; i++){
-                if(pos + i >= kArrayFloIds.length)
-                    var next = pos + i - kArrayFloIds.length
-                else
-                    var next = pos + i
-                nextSupernode.push(kArrayFloIds[next])
-            }
-            resolve(nextSupernode);
-          } catch (error) {
-            reject(error);
-          }
-        });
-      },
-
-      determineClosestSupernode: function (flo_addr, n = 1, KB = this.supernodeKBucket) {
-        return new Promise((resolve, reject) => {
-          try {
-            let isFloIdUint8 = flo_addr instanceof Uint8Array;
-            if (!isFloIdUint8)
-              flo_addr = this.floIdToKbucketId(flo_addr);
-            var closestSupernode = KB.closest(flo_addr, n);
-            closestSupernode = closestSupernode.map(k => k.floID);
-            resolve(closestSupernode);
-          } catch (error) {
-            reject(error);
-          }
-        });
-      }
-    },
-
-    sendDataToSN(data, snfloID){
-        return new Promise((resolve, reject) => {
-            var websocket = new WebSocket("wss://" + floGlobals.supernodes[snfloID].uri + "/ws");
-            websocket.onmessage = (evt => {
-                if(evt.data == '$+'){
-                    websocket.send(data);
-                    resolve(`Data sent to supernode : ${snfloID}`);
-                }else if(evt.data == '$-'){
+        sendDataToSN(data, snfloID) {
+            return new Promise((resolve, reject) => {
+                var websocket = new WebSocket("wss://" + floGlobals.supernodes[snfloID].uri + "/ws");
+                websocket.onmessage = (evt => {
+                    if (evt.data == '$+') {
+                        websocket.send(data);
+                        resolve(`Data sent to supernode : ${snfloID}`);
+                    } else if (evt.data == '$-') {
+                        this.kBucket.getNextSupernode(snfloID).then(nextNode => {
+                            this.sendDataToSN(data, nextNode[0])
+                                .then(result => resolve(result))
+                                .catch(error => reject(error))
+                        }).catch(error => reject(error))
+                    } else {
+                        console.log(evt.data)
+                        reject(evt.data)
+                    }
+                    websocket.close();
+                })
+                websocket.onerror = (evt) => {
                     this.kBucket.getNextSupernode(snfloID).then(nextNode => {
                         this.sendDataToSN(data, nextNode[0])
                             .then(result => resolve(result))
                             .catch(error => reject(error))
                     }).catch(error => reject(error))
-                }else{
-                    console.log(evt.data)
-                    reject(evt.data)
-                }
-                websocket.close();
+                };
             })
-            websocket.onerror = (evt) => {
-                this.kBucket.getNextSupernode(snfloID).then(nextNode => {
-                    this.sendDataToSN(data, nextNode[0])
+        },
+
+        //Sends data to the supernode
+        sendData: function (data, floID) {
+            return new Promise((resolve, reject) => {
+                this.kBucket.determineClosestSupernode(floID).then(closestNode => {
+                    this.sendDataToSN(data, closestNode[0])
                         .then(result => resolve(result))
                         .catch(error => reject(error))
-                }).catch(error => reject(error))
-            };
-        })
-    },
+                }).catch(error => {
+                    reject(error);
+                });
+            });
+        },
 
-    //Sends data to the supernode
-    sendData: function (data, floID) {
-      return new Promise((resolve, reject) => {
-        this.kBucket.determineClosestSupernode(floID).then(closestNode => {
-            this.sendDataToSN(data, closestNode[0])
-                .then(result => resolve(result))
-                .catch(error => reject(error))
-        }).catch(error => {
-            reject(error);
-        });
-      });
-    },
-
-    requestDataFromSN(request, snfloID){
-        return new Promise((resolve, reject) => {
-            var websocket = new WebSocket("wss://" + floGlobals.supernodes[snfloID].uri + "/ws");
-            websocket.onmessage = (evt => {
-                if(evt.data == '$+'){
-                    websocket.send(`?${request}`);
-                }else if(evt.data == '$-'){
+        requestDataFromSN(request, snfloID) {
+            return new Promise((resolve, reject) => {
+                var websocket = new WebSocket("wss://" + floGlobals.supernodes[snfloID].uri + "/ws");
+                websocket.onmessage = (evt => {
+                    if (evt.data == '$+') {
+                        websocket.send(`?${request}`);
+                    } else if (evt.data == '$-') {
+                        this.kBucket.getNextSupernode(snfloID).then(nextNode => {
+                            this.requestDataFromSN(request, nextNode[0])
+                                .then(result => resolve(result))
+                                .catch(error => reject(error))
+                        }).catch(error => reject(error))
+                        websocket.close()
+                    } else {
+                        resolve(evt.data);
+                        websocket.close();
+                    }
+                })
+                websocket.onerror = (evt) => {
                     this.kBucket.getNextSupernode(snfloID).then(nextNode => {
                         this.requestDataFromSN(request, nextNode[0])
                             .then(result => resolve(result))
                             .catch(error => reject(error))
                     }).catch(error => reject(error))
-                    websocket.close()
-                }else{
-                    resolve(evt.data);
-                    websocket.close();
-                }
+                };
             })
-            websocket.onerror = (evt) => {
-                this.kBucket.getNextSupernode(snfloID).then(nextNode => {
-                    this.requestDataFromSN(request, nextNode[0])
+        },
+
+        //Request data from supernode
+        requestData: function (request, floID) {
+            return new Promise((resolve, reject) => {
+                this.kBucket.determineClosestSupernode(floID).then(closestNode => {
+                    this.requestDataFromSN(request, closestNode[0])
                         .then(result => resolve(result))
                         .catch(error => reject(error))
-                }).catch(error => reject(error))
-            };
-        })
-    },
-
-    //Request data from supernode
-    requestData: function (request, floID) {
-      return new Promise((resolve, reject) => {
-        this.kBucket.determineClosestSupernode(floID).then(closestNode => {
-            this.requestDataFromSN(request, closestNode[0])
-                .then(result => resolve(result))
-                .catch(error => reject(error))
-        }).catch(error => {
-            reject(error);
-        });
-      });
-    }
-  }
-
-  /**Kademlia DHT K-bucket implementation as a binary tree.
-   * Implementation of a Kademlia DHT k-bucket used for storing
-   * contact (peer node) information.
-   *
-   * @extends EventEmitter
-   */
-   function BuildKBucket(options = {}) {
-    /**
-     * `options`:
-     *   `distance`: Function
-     *     `function (firstId, secondId) { return distance }` An optional
-     *     `distance` function that gets two `id` Uint8Arrays
-     *     and return distance (as number) between them.
-     *   `arbiter`: Function (Default: vectorClock arbiter)
-     *     `function (incumbent, candidate) { return contact; }` An optional
-     *     `arbiter` function that givent two `contact` objects with the same `id`
-     *     returns the desired object to be used for updating the k-bucket. For
-     *     more details, see [arbiter function](#arbiter-function).
-     *   `localNodeId`: Uint8Array An optional Uint8Array representing the local node id.
-     *     If not provided, a local node id will be created via `randomBytes(20)`.
-     *     `metadata`: Object (Default: {}) Optional satellite data to include
-     *     with the k-bucket. `metadata` property is guaranteed not be altered by,
-     *     it is provided as an explicit container for users of k-bucket to store
-     *     implementation-specific data.
-     *   `numberOfNodesPerKBucket`: Integer (Default: 20) The number of nodes
-     *     that a k-bucket can contain before being full or split.
-     *     `numberOfNodesToPing`: Integer (Default: 3) The number of nodes to
-     *     ping when a bucket that should not be split becomes full. KBucket will
-     *     emit a `ping` event that contains `numberOfNodesToPing` nodes that have
-     *     not been contacted the longest.
-     *
-     * @param {Object=} options optional
-     */
-
-    this.localNodeId = options.localNodeId || window.crypto.getRandomValues(new Uint8Array(20))
-    this.numberOfNodesPerKBucket = options.numberOfNodesPerKBucket || 20
-    this.numberOfNodesToPing = options.numberOfNodesToPing || 3
-    this.distance = options.distance || this.distance
-    // use an arbiter from options or vectorClock arbiter by default
-    this.arbiter = options.arbiter || this.arbiter
-    this.metadata = Object.assign({}, options.metadata)
-
-    this.createNode = function () {
-      return {
-        contacts: [],
-        dontSplit: false,
-        left: null,
-        right: null
-      }
-    }
-
-    this.ensureInt8 = function (name, val) {
-      if (!(val instanceof Uint8Array)) {
-        throw new TypeError(name + ' is not a Uint8Array')
-      }
-    }
-
-    /**
-     * @param  {Uint8Array} array1
-     * @param  {Uint8Array} array2
-     * @return {Boolean}
-     */
-    this.arrayEquals = function (array1, array2) {
-      if (array1 === array2) {
-        return true
-      }
-      if (array1.length !== array2.length) {
-        return false
-      }
-      for (let i = 0, length = array1.length; i < length; ++i) {
-        if (array1[i] !== array2[i]) {
-          return false
+                }).catch(error => {
+                    reject(error);
+                });
+            });
         }
-      }
-      return true
     }
 
-    this.ensureInt8('option.localNodeId as parameter 1', this.localNodeId)
-    this.root = this.createNode()
-
-    /**
-     * Default arbiter function for contacts with the same id. Uses
-     * contact.vectorClock to select which contact to update the k-bucket with.
-     * Contact with larger vectorClock field will be selected. If vectorClock is
-     * the same, candidat will be selected.
+    /**Kademlia DHT K-bucket implementation as a binary tree.
+     * Implementation of a Kademlia DHT k-bucket used for storing
+     * contact (peer node) information.
      *
-     * @param  {Object} incumbent Contact currently stored in the k-bucket.
-     * @param  {Object} candidate Contact being added to the k-bucket.
-     * @return {Object}           Contact to updated the k-bucket with.
+     * @extends EventEmitter
      */
-    this.arbiter = function (incumbent, candidate) {
-      return incumbent.vectorClock > candidate.vectorClock ? incumbent : candidate
-    }
+    function BuildKBucket(options = {}) {
+        /**
+         * `options`:
+         *   `distance`: Function
+         *     `function (firstId, secondId) { return distance }` An optional
+         *     `distance` function that gets two `id` Uint8Arrays
+         *     and return distance (as number) between them.
+         *   `arbiter`: Function (Default: vectorClock arbiter)
+         *     `function (incumbent, candidate) { return contact; }` An optional
+         *     `arbiter` function that givent two `contact` objects with the same `id`
+         *     returns the desired object to be used for updating the k-bucket. For
+         *     more details, see [arbiter function](#arbiter-function).
+         *   `localNodeId`: Uint8Array An optional Uint8Array representing the local node id.
+         *     If not provided, a local node id will be created via `randomBytes(20)`.
+         *     `metadata`: Object (Default: {}) Optional satellite data to include
+         *     with the k-bucket. `metadata` property is guaranteed not be altered by,
+         *     it is provided as an explicit container for users of k-bucket to store
+         *     implementation-specific data.
+         *   `numberOfNodesPerKBucket`: Integer (Default: 20) The number of nodes
+         *     that a k-bucket can contain before being full or split.
+         *     `numberOfNodesToPing`: Integer (Default: 3) The number of nodes to
+         *     ping when a bucket that should not be split becomes full. KBucket will
+         *     emit a `ping` event that contains `numberOfNodesToPing` nodes that have
+         *     not been contacted the longest.
+         *
+         * @param {Object=} options optional
+         */
 
-    /**
-     * Default distance function. Finds the XOR
-     * distance between firstId and secondId.
-     *
-     * @param  {Uint8Array} firstId  Uint8Array containing first id.
-     * @param  {Uint8Array} secondId Uint8Array containing second id.
-     * @return {Number}              Integer The XOR distance between firstId
-     *                               and secondId.
-     */
-    this.distance = function (firstId, secondId) {
-      let distance = 0
-      let i = 0
-      const min = Math.min(firstId.length, secondId.length)
-      const max = Math.max(firstId.length, secondId.length)
-      for (; i < min; ++i) {
-        distance = distance * 256 + (firstId[i] ^ secondId[i])
-      }
-      for (; i < max; ++i) distance = distance * 256 + 255
-      return distance
-    }
+        this.localNodeId = options.localNodeId || window.crypto.getRandomValues(new Uint8Array(20))
+        this.numberOfNodesPerKBucket = options.numberOfNodesPerKBucket || 20
+        this.numberOfNodesToPing = options.numberOfNodesToPing || 3
+        this.distance = options.distance || this.distance
+        // use an arbiter from options or vectorClock arbiter by default
+        this.arbiter = options.arbiter || this.arbiter
+        this.metadata = Object.assign({}, options.metadata)
 
-    /**
-     * Adds a contact to the k-bucket.
-     *
-     * @param {Object} contact the contact object to add
-     */
-    this.add = function (contact) {
-      this.ensureInt8('contact.id', (contact || {}).id)
-
-      let bitIndex = 0
-      let node = this.root
-
-      while (node.contacts === null) {
-        // this is not a leaf node but an inner node with 'low' and 'high'
-        // branches; we will check the appropriate bit of the identifier and
-        // delegate to the appropriate node for further processing
-        node = this._determineNode(node, contact.id, bitIndex++)
-      }
-
-      // check if the contact already exists
-      const index = this._indexOf(node, contact.id)
-      if (index >= 0) {
-        this._update(node, index, contact)
-        return this
-      }
-
-      if (node.contacts.length < this.numberOfNodesPerKBucket) {
-        node.contacts.push(contact)
-        return this
-      }
-
-      // the bucket is full
-      if (node.dontSplit) {
-        // we are not allowed to split the bucket
-        // we need to ping the first this.numberOfNodesToPing
-        // in order to determine if they are alive
-        // only if one of the pinged nodes does not respond, can the new contact
-        // be added (this prevents DoS flodding with new invalid contacts)
-        return this
-      }
-
-      this._split(node, bitIndex)
-      return this.add(contact)
-    }
-
-    /**
-     * Get the n closest contacts to the provided node id. "Closest" here means:
-     * closest according to the XOR metric of the contact node id.
-     *
-     * @param  {Uint8Array} id  Contact node id
-     * @param  {Number=} n      Integer (Default: Infinity) The maximum number of
-     *                          closest contacts to return
-     * @return {Array}          Array Maximum of n closest contacts to the node id
-     */
-    this.closest = function (id, n = Infinity) {
-      this.ensureInt8('id', id)
-
-      if ((!Number.isInteger(n) && n !== Infinity) || n <= 0) {
-        throw new TypeError('n is not positive number')
-      }
-
-      let contacts = []
-
-      for (let nodes = [this.root], bitIndex = 0; nodes.length > 0 && contacts.length < n;) {
-        const node = nodes.pop()
-        if (node.contacts === null) {
-          const detNode = this._determineNode(node, id, bitIndex++)
-          nodes.push(node.left === detNode ? node.right : node.left)
-          nodes.push(detNode)
-        } else {
-          contacts = contacts.concat(node.contacts)
+        this.createNode = function () {
+            return {
+                contacts: [],
+                dontSplit: false,
+                left: null,
+                right: null
+            }
         }
-      }
 
-      return contacts
-        .map(a => [this.distance(a.id, id), a])
-        .sort((a, b) => a[0] - b[0])
-        .slice(0, n)
-        .map(a => a[1])
+        this.ensureInt8 = function (name, val) {
+            if (!(val instanceof Uint8Array)) {
+                throw new TypeError(name + ' is not a Uint8Array')
+            }
+        }
+
+        /**
+         * @param  {Uint8Array} array1
+         * @param  {Uint8Array} array2
+         * @return {Boolean}
+         */
+        this.arrayEquals = function (array1, array2) {
+            if (array1 === array2) {
+                return true
+            }
+            if (array1.length !== array2.length) {
+                return false
+            }
+            for (let i = 0, length = array1.length; i < length; ++i) {
+                if (array1[i] !== array2[i]) {
+                    return false
+                }
+            }
+            return true
+        }
+
+        this.ensureInt8('option.localNodeId as parameter 1', this.localNodeId)
+        this.root = this.createNode()
+
+        /**
+         * Default arbiter function for contacts with the same id. Uses
+         * contact.vectorClock to select which contact to update the k-bucket with.
+         * Contact with larger vectorClock field will be selected. If vectorClock is
+         * the same, candidat will be selected.
+         *
+         * @param  {Object} incumbent Contact currently stored in the k-bucket.
+         * @param  {Object} candidate Contact being added to the k-bucket.
+         * @return {Object}           Contact to updated the k-bucket with.
+         */
+        this.arbiter = function (incumbent, candidate) {
+            return incumbent.vectorClock > candidate.vectorClock ? incumbent : candidate
+        }
+
+        /**
+         * Default distance function. Finds the XOR
+         * distance between firstId and secondId.
+         *
+         * @param  {Uint8Array} firstId  Uint8Array containing first id.
+         * @param  {Uint8Array} secondId Uint8Array containing second id.
+         * @return {Number}              Integer The XOR distance between firstId
+         *                               and secondId.
+         */
+        this.distance = function (firstId, secondId) {
+            let distance = 0
+            let i = 0
+            const min = Math.min(firstId.length, secondId.length)
+            const max = Math.max(firstId.length, secondId.length)
+            for (; i < min; ++i) {
+                distance = distance * 256 + (firstId[i] ^ secondId[i])
+            }
+            for (; i < max; ++i) distance = distance * 256 + 255
+            return distance
+        }
+
+        /**
+         * Adds a contact to the k-bucket.
+         *
+         * @param {Object} contact the contact object to add
+         */
+        this.add = function (contact) {
+            this.ensureInt8('contact.id', (contact || {}).id)
+
+            let bitIndex = 0
+            let node = this.root
+
+            while (node.contacts === null) {
+                // this is not a leaf node but an inner node with 'low' and 'high'
+                // branches; we will check the appropriate bit of the identifier and
+                // delegate to the appropriate node for further processing
+                node = this._determineNode(node, contact.id, bitIndex++)
+            }
+
+            // check if the contact already exists
+            const index = this._indexOf(node, contact.id)
+            if (index >= 0) {
+                this._update(node, index, contact)
+                return this
+            }
+
+            if (node.contacts.length < this.numberOfNodesPerKBucket) {
+                node.contacts.push(contact)
+                return this
+            }
+
+            // the bucket is full
+            if (node.dontSplit) {
+                // we are not allowed to split the bucket
+                // we need to ping the first this.numberOfNodesToPing
+                // in order to determine if they are alive
+                // only if one of the pinged nodes does not respond, can the new contact
+                // be added (this prevents DoS flodding with new invalid contacts)
+                return this
+            }
+
+            this._split(node, bitIndex)
+            return this.add(contact)
+        }
+
+        /**
+         * Get the n closest contacts to the provided node id. "Closest" here means:
+         * closest according to the XOR metric of the contact node id.
+         *
+         * @param  {Uint8Array} id  Contact node id
+         * @param  {Number=} n      Integer (Default: Infinity) The maximum number of
+         *                          closest contacts to return
+         * @return {Array}          Array Maximum of n closest contacts to the node id
+         */
+        this.closest = function (id, n = Infinity) {
+            this.ensureInt8('id', id)
+
+            if ((!Number.isInteger(n) && n !== Infinity) || n <= 0) {
+                throw new TypeError('n is not positive number')
+            }
+
+            let contacts = []
+
+            for (let nodes = [this.root], bitIndex = 0; nodes.length > 0 && contacts.length < n;) {
+                const node = nodes.pop()
+                if (node.contacts === null) {
+                    const detNode = this._determineNode(node, id, bitIndex++)
+                    nodes.push(node.left === detNode ? node.right : node.left)
+                    nodes.push(detNode)
+                } else {
+                    contacts = contacts.concat(node.contacts)
+                }
+            }
+
+            return contacts
+                .map(a => [this.distance(a.id, id), a])
+                .sort((a, b) => a[0] - b[0])
+                .slice(0, n)
+                .map(a => a[1])
+        }
+
+        /**
+         * Counts the total number of contacts in the tree.
+         *
+         * @return {Number} The number of contacts held in the tree
+         */
+        this.count = function () {
+            // return this.toArray().length
+            let count = 0
+            for (const nodes = [this.root]; nodes.length > 0;) {
+                const node = nodes.pop()
+                if (node.contacts === null) nodes.push(node.right, node.left)
+                else count += node.contacts.length
+            }
+            return count
+        }
+
+        /**
+         * Determines whether the id at the bitIndex is 0 or 1.
+         * Return left leaf if `id` at `bitIndex` is 0, right leaf otherwise
+         *
+         * @param  {Object} node     internal object that has 2 leafs: left and right
+         * @param  {Uint8Array} id   Id to compare localNodeId with.
+         * @param  {Number} bitIndex Integer (Default: 0) The bit index to which bit
+         *                           to check in the id Uint8Array.
+         * @return {Object}          left leaf if id at bitIndex is 0, right leaf otherwise.
+         */
+        this._determineNode = function (node, id, bitIndex) {
+            // *NOTE* remember that id is a Uint8Array and has granularity of
+            // bytes (8 bits), whereas the bitIndex is the bit index (not byte)
+
+            // id's that are too short are put in low bucket (1 byte = 8 bits)
+            // (bitIndex >> 3) finds how many bytes the bitIndex describes
+            // bitIndex % 8 checks if we have extra bits beyond byte multiples
+            // if number of bytes is <= no. of bytes described by bitIndex and there
+            // are extra bits to consider, this means id has less bits than what
+            // bitIndex describes, id therefore is too short, and will be put in low
+            // bucket
+            const bytesDescribedByBitIndex = bitIndex >> 3
+            const bitIndexWithinByte = bitIndex % 8
+            if ((id.length <= bytesDescribedByBitIndex) && (bitIndexWithinByte !== 0)) {
+                return node.left
+            }
+
+            const byteUnderConsideration = id[bytesDescribedByBitIndex]
+
+            // byteUnderConsideration is an integer from 0 to 255 represented by 8 bits
+            // where 255 is 11111111 and 0 is 00000000
+            // in order to find out whether the bit at bitIndexWithinByte is set
+            // we construct (1 << (7 - bitIndexWithinByte)) which will consist
+            // of all bits being 0, with only one bit set to 1
+            // for example, if bitIndexWithinByte is 3, we will construct 00010000 by
+            // (1 << (7 - 3)) -> (1 << 4) -> 16
+            if (byteUnderConsideration & (1 << (7 - bitIndexWithinByte))) {
+                return node.right
+            }
+
+            return node.left
+        }
+
+        /**
+         * Get a contact by its exact ID.
+         * If this is a leaf, loop through the bucket contents and return the correct
+         * contact if we have it or null if not. If this is an inner node, determine
+         * which branch of the tree to traverse and repeat.
+         *
+         * @param  {Uint8Array} id The ID of the contact to fetch.
+         * @return {Object|Null}   The contact if available, otherwise null
+         */
+        this.get = function (id) {
+            this.ensureInt8('id', id)
+
+            let bitIndex = 0
+
+            let node = this.root
+            while (node.contacts === null) {
+                node = this._determineNode(node, id, bitIndex++)
+            }
+
+            // index of uses contact id for matching
+            const index = this._indexOf(node, id)
+            return index >= 0 ? node.contacts[index] : null
+        }
+
+        /**
+         * Returns the index of the contact with provided
+         * id if it exists, returns -1 otherwise.
+         *
+         * @param  {Object} node    internal object that has 2 leafs: left and right
+         * @param  {Uint8Array} id  Contact node id.
+         * @return {Number}         Integer Index of contact with provided id if it
+         *                          exists, -1 otherwise.
+         */
+        this._indexOf = function (node, id) {
+            for (let i = 0; i < node.contacts.length; ++i) {
+                if (this.arrayEquals(node.contacts[i].id, id)) return i
+            }
+
+            return -1
+        }
+
+        /**
+         * Removes contact with the provided id.
+         *
+         * @param  {Uint8Array} id The ID of the contact to remove.
+         * @return {Object}        The k-bucket itself.
+         */
+        this.remove = function (id) {
+            this.ensureInt8('the id as parameter 1', id)
+
+            let bitIndex = 0
+            let node = this.root
+
+            while (node.contacts === null) {
+                node = this._determineNode(node, id, bitIndex++)
+            }
+
+            const index = this._indexOf(node, id)
+            if (index >= 0) {
+                const contact = node.contacts.splice(index, 1)[0]
+            }
+
+            return this
+        }
+
+        /**
+         * Splits the node, redistributes contacts to the new nodes, and marks the
+         * node that was split as an inner node of the binary tree of nodes by
+         * setting this.root.contacts = null
+         *
+         * @param  {Object} node     node for splitting
+         * @param  {Number} bitIndex the bitIndex to which byte to check in the
+         *                           Uint8Array for navigating the binary tree
+         */
+        this._split = function (node, bitIndex) {
+            node.left = this.createNode()
+            node.right = this.createNode()
+
+            // redistribute existing contacts amongst the two newly created nodes
+            for (const contact of node.contacts) {
+                this._determineNode(node, contact.id, bitIndex).contacts.push(contact)
+            }
+
+            node.contacts = null // mark as inner tree node
+
+            // don't split the "far away" node
+            // we check where the local node would end up and mark the other one as
+            // "dontSplit" (i.e. "far away")
+            const detNode = this._determineNode(node, this.localNodeId, bitIndex)
+            const otherNode = node.left === detNode ? node.right : node.left
+            otherNode.dontSplit = true
+        }
+
+        /**
+         * Returns all the contacts contained in the tree as an array.
+         * If this is a leaf, return a copy of the bucket. `slice` is used so that we
+         * don't accidentally leak an internal reference out that might be
+         * accidentally misused. If this is not a leaf, return the union of the low
+         * and high branches (themselves also as arrays).
+         *
+         * @return {Array} All of the contacts in the tree, as an array
+         */
+        this.toArray = function () {
+            let result = []
+            for (const nodes = [this.root]; nodes.length > 0;) {
+                const node = nodes.pop()
+                if (node.contacts === null) nodes.push(node.right, node.left)
+                else result = result.concat(node.contacts)
+            }
+            return result
+        }
+
+        /**
+         * Updates the contact selected by the arbiter.
+         * If the selection is our old contact and the candidate is some new contact
+         * then the new contact is abandoned (not added).
+         * If the selection is our old contact and the candidate is our old contact
+         * then we are refreshing the contact and it is marked as most recently
+         * contacted (by being moved to the right/end of the bucket array).
+         * If the selection is our new contact, the old contact is removed and the new
+         * contact is marked as most recently contacted.
+         *
+         * @param  {Object} node    internal object that has 2 leafs: left and right
+         * @param  {Number} index   the index in the bucket where contact exists
+         *                          (index has already been computed in a previous
+         *                          calculation)
+         * @param  {Object} contact The contact object to update.
+         */
+        this._update = function (node, index, contact) {
+            // sanity check
+            if (!this.arrayEquals(node.contacts[index].id, contact.id)) {
+                throw new Error('wrong index for _update')
+            }
+
+            const incumbent = node.contacts[index]
+            const selection = this.arbiter(incumbent, contact)
+            // if the selection is our old contact and the candidate is some new
+            // contact, then there is nothing to do
+            if (selection === incumbent && incumbent !== contact) return
+
+            node.contacts.splice(index, 1) // remove old contact
+            node.contacts.push(selection) // add more recent contact version
+
+        }
     }
-
-    /**
-     * Counts the total number of contacts in the tree.
-     *
-     * @return {Number} The number of contacts held in the tree
-     */
-    this.count = function () {
-      // return this.toArray().length
-      let count = 0
-      for (const nodes = [this.root]; nodes.length > 0;) {
-        const node = nodes.pop()
-        if (node.contacts === null) nodes.push(node.right, node.left)
-        else count += node.contacts.length
-      }
-      return count
-    }
-
-    /**
-     * Determines whether the id at the bitIndex is 0 or 1.
-     * Return left leaf if `id` at `bitIndex` is 0, right leaf otherwise
-     *
-     * @param  {Object} node     internal object that has 2 leafs: left and right
-     * @param  {Uint8Array} id   Id to compare localNodeId with.
-     * @param  {Number} bitIndex Integer (Default: 0) The bit index to which bit
-     *                           to check in the id Uint8Array.
-     * @return {Object}          left leaf if id at bitIndex is 0, right leaf otherwise.
-     */
-    this._determineNode = function (node, id, bitIndex) {
-      // *NOTE* remember that id is a Uint8Array and has granularity of
-      // bytes (8 bits), whereas the bitIndex is the bit index (not byte)
-
-      // id's that are too short are put in low bucket (1 byte = 8 bits)
-      // (bitIndex >> 3) finds how many bytes the bitIndex describes
-      // bitIndex % 8 checks if we have extra bits beyond byte multiples
-      // if number of bytes is <= no. of bytes described by bitIndex and there
-      // are extra bits to consider, this means id has less bits than what
-      // bitIndex describes, id therefore is too short, and will be put in low
-      // bucket
-      const bytesDescribedByBitIndex = bitIndex >> 3
-      const bitIndexWithinByte = bitIndex % 8
-      if ((id.length <= bytesDescribedByBitIndex) && (bitIndexWithinByte !== 0)) {
-        return node.left
-      }
-
-      const byteUnderConsideration = id[bytesDescribedByBitIndex]
-
-      // byteUnderConsideration is an integer from 0 to 255 represented by 8 bits
-      // where 255 is 11111111 and 0 is 00000000
-      // in order to find out whether the bit at bitIndexWithinByte is set
-      // we construct (1 << (7 - bitIndexWithinByte)) which will consist
-      // of all bits being 0, with only one bit set to 1
-      // for example, if bitIndexWithinByte is 3, we will construct 00010000 by
-      // (1 << (7 - 3)) -> (1 << 4) -> 16
-      if (byteUnderConsideration & (1 << (7 - bitIndexWithinByte))) {
-        return node.right
-      }
-
-      return node.left
-    }
-
-    /**
-     * Get a contact by its exact ID.
-     * If this is a leaf, loop through the bucket contents and return the correct
-     * contact if we have it or null if not. If this is an inner node, determine
-     * which branch of the tree to traverse and repeat.
-     *
-     * @param  {Uint8Array} id The ID of the contact to fetch.
-     * @return {Object|Null}   The contact if available, otherwise null
-     */
-    this.get = function (id) {
-      this.ensureInt8('id', id)
-
-      let bitIndex = 0
-
-      let node = this.root
-      while (node.contacts === null) {
-        node = this._determineNode(node, id, bitIndex++)
-      }
-
-      // index of uses contact id for matching
-      const index = this._indexOf(node, id)
-      return index >= 0 ? node.contacts[index] : null
-    }
-
-    /**
-     * Returns the index of the contact with provided
-     * id if it exists, returns -1 otherwise.
-     *
-     * @param  {Object} node    internal object that has 2 leafs: left and right
-     * @param  {Uint8Array} id  Contact node id.
-     * @return {Number}         Integer Index of contact with provided id if it
-     *                          exists, -1 otherwise.
-     */
-    this._indexOf = function (node, id) {
-      for (let i = 0; i < node.contacts.length; ++i) {
-        if (this.arrayEquals(node.contacts[i].id, id)) return i
-      }
-
-      return -1
-    }
-
-    /**
-     * Removes contact with the provided id.
-     *
-     * @param  {Uint8Array} id The ID of the contact to remove.
-     * @return {Object}        The k-bucket itself.
-     */
-    this.remove = function (id) {
-      this.ensureInt8('the id as parameter 1', id)
-
-      let bitIndex = 0
-      let node = this.root
-
-      while (node.contacts === null) {
-        node = this._determineNode(node, id, bitIndex++)
-      }
-
-      const index = this._indexOf(node, id)
-      if (index >= 0) {
-        const contact = node.contacts.splice(index, 1)[0]
-      }
-
-      return this
-    }
-
-    /**
-     * Splits the node, redistributes contacts to the new nodes, and marks the
-     * node that was split as an inner node of the binary tree of nodes by
-     * setting this.root.contacts = null
-     *
-     * @param  {Object} node     node for splitting
-     * @param  {Number} bitIndex the bitIndex to which byte to check in the
-     *                           Uint8Array for navigating the binary tree
-     */
-    this._split = function (node, bitIndex) {
-      node.left = this.createNode()
-      node.right = this.createNode()
-
-      // redistribute existing contacts amongst the two newly created nodes
-      for (const contact of node.contacts) {
-        this._determineNode(node, contact.id, bitIndex).contacts.push(contact)
-      }
-
-      node.contacts = null // mark as inner tree node
-
-      // don't split the "far away" node
-      // we check where the local node would end up and mark the other one as
-      // "dontSplit" (i.e. "far away")
-      const detNode = this._determineNode(node, this.localNodeId, bitIndex)
-      const otherNode = node.left === detNode ? node.right : node.left
-      otherNode.dontSplit = true
-    }
-
-    /**
-     * Returns all the contacts contained in the tree as an array.
-     * If this is a leaf, return a copy of the bucket. `slice` is used so that we
-     * don't accidentally leak an internal reference out that might be
-     * accidentally misused. If this is not a leaf, return the union of the low
-     * and high branches (themselves also as arrays).
-     *
-     * @return {Array} All of the contacts in the tree, as an array
-     */
-    this.toArray = function () {
-      let result = []
-      for (const nodes = [this.root]; nodes.length > 0;) {
-        const node = nodes.pop()
-        if (node.contacts === null) nodes.push(node.right, node.left)
-        else result = result.concat(node.contacts)
-      }
-      return result
-    }
-
-    /**
-     * Updates the contact selected by the arbiter.
-     * If the selection is our old contact and the candidate is some new contact
-     * then the new contact is abandoned (not added).
-     * If the selection is our old contact and the candidate is our old contact
-     * then we are refreshing the contact and it is marked as most recently
-     * contacted (by being moved to the right/end of the bucket array).
-     * If the selection is our new contact, the old contact is removed and the new
-     * contact is marked as most recently contacted.
-     *
-     * @param  {Object} node    internal object that has 2 leafs: left and right
-     * @param  {Number} index   the index in the bucket where contact exists
-     *                          (index has already been computed in a previous
-     *                          calculation)
-     * @param  {Object} contact The contact object to update.
-     */
-    this._update = function (node, index, contact) {
-      // sanity check
-      if (!this.arrayEquals(node.contacts[index].id, contact.id)) {
-        throw new Error('wrong index for _update')
-      }
-
-      const incumbent = node.contacts[index]
-      const selection = this.arbiter(incumbent, contact)
-      // if the selection is our old contact and the candidate is some new
-      // contact, then there is nothing to do
-      if (selection === incumbent && incumbent !== contact) return
-
-      node.contacts.splice(index, 1) // remove old contact
-      node.contacts.push(selection) // add more recent contact version
-
-    }
-  }
-
 </script>
 <script id="compactIDB">
-  /* Compact IndexedDB operations */
+    /* Compact IndexedDB operations */
 
-  window.indexedDB = window.indexedDB || window.mozIndexedDB || window.webkitIndexedDB || window.msIndexedDB;
-  window.IDBTransaction = window.IDBTransaction || window.webkitIDBTransaction || window.msIDBTransaction;
-  window.IDBKeyRange = window.IDBKeyRange || window.webkitIDBKeyRange || window.msIDBKeyRange;
+    window.indexedDB = window.indexedDB || window.mozIndexedDB || window.webkitIndexedDB || window.msIndexedDB;
+    window.IDBTransaction = window.IDBTransaction || window.webkitIDBTransaction || window.msIDBTransaction;
+    window.IDBKeyRange = window.IDBKeyRange || window.webkitIDBKeyRange || window.msIDBKeyRange;
 
-  if (!window.indexedDB)
-    window.alert("Your browser doesn't support a stable version of IndexedDB.")
+    if (!window.indexedDB)
+        window.alert("Your browser doesn't support a stable version of IndexedDB.")
 
-  const compactIDB = {
+    const compactIDB = {
 
-    setDefaultDB: function (dbName) {
-      this.dbName = dbName;
-    },
+        setDefaultDB: function (dbName) {
+            this.defaultDB = dbName;
+        },
 
-    initDB: function (dbName, objectStores = {}) {
-      return new Promise((resolve, reject) => {
-        this.dbName = this.dbName || dbName;
-        var idb = indexedDB.open(dbName);
-        idb.onerror = (event) => {
-          reject("Error in opening IndexedDB!");
-        };
-        idb.onupgradeneeded = (event) => {
-          var db = event.target.result;
-          for (obs in objectStores) {
-            var objectStore = db.createObjectStore(obs, objectStores[obs].options || {});
-            if (objectStores[obs].indexes && typeof objectStores[obs].indexes === 'object')
-              for (i in objectStores[obs].indexes)
-                objectStore.createIndex(i, i, objectStores[obs].indexes[i] || {});
-          }
+        initDB: function (dbName, objectStores = {}, version = null, removeStores = []) {
+            return new Promise((resolve, reject) => {
+                this.defaultDB = this.defaultDB || dbName;
+                var idb = version ? indexedDB.open(dbName, version) : indexedDB.open(dbName);
+                idb.onerror = (event) => {
+                    reject("Error in opening IndexedDB!");
+                };
+                idb.onupgradeneeded = (event) => {
+                    var db = event.target.result;
+                    for (let obs in objectStores) {
+                        var objectStore = db.createObjectStore(obs, objectStores[obs].options ||
+                        {});
+                        if (objectStores[obs].indexes && typeof objectStores[obs].indexes ===
+                            'object')
+                            for (let i in objectStores[obs].indexes)
+                                objectStore.createIndex(i, i, objectStores[obs].indexes[i] || {});
+                    }
+                    if (version)
+                        removeStores.forEach(obs => db.deleteObjectStore(obs));
+                }
+                idb.onsuccess = (event) => {
+                    var db = event.target.result;
+                    if (JSON.stringify(Object.values(db.objectStoreNames).sort()) === JSON
+                        .stringify(Object.keys(objectStores).sort()))
+                        resolve("Initiated IndexedDB");
+                    else {
+                        let removeObs = [];
+                        Object.values(db.objectStoreNames).forEach(obs => {
+                            if (obs in objectStores)
+                                delete objectStores[obs]
+                            else
+                                removeObs.push(obs)
+                        })
+                        this.initDB(dbName, objectStores, db.version + 1, removeObs)
+                            .then(result => resolve(result))
+                            .catch(error => reject(error))
+                    }
+                    db.close();
+                }
+            });
+        },
+
+        openDB: function (dbName = this.defaultDB) {
+            return new Promise((resolve, reject) => {
+                var idb = indexedDB.open(dbName);
+                idb.onerror = (event) => reject("Error in opening IndexedDB!");
+                idb.onsuccess = (event) => resolve(event.target.result);
+            });
+        },
+
+        deleteDB: function (dbName = this.defaultDB) {
+            return new Promise((resolve, reject) => {
+                var deleteReq = indexedDB.deleteDatabase(dbName);;
+                deleteReq.onerror = (event) => reject("Error deleting database!");
+                deleteReq.onsuccess = (event) => resolve("Database deleted successfully");
+            });
+        },
+
+        writeData: function (obsName, data, key = false, dbName = this.defaultDB) {
+            return new Promise((resolve, reject) => {
+                this.openDB(dbName).then(db => {
+                    var obs = db.transaction(obsName, "readwrite").objectStore(obsName);
+                    let writeReq = (key ? obs.put(data, key) : obs.put(data));
+                    writeReq.onsuccess = (evt) => resolve(`Write data Successful`);
+                    writeReq.onerror = (evt) => reject(
+                        `Write data unsuccessful [${evt.target.error.name}] ${evt.target.error.message}`
+                    );
+                    db.close();
+                }).catch(error => reject(error));
+            });
+        },
+
+        addData: function (obsName, data, key = false, dbName = this.defaultDB) {
+            return new Promise((resolve, reject) => {
+                this.openDB(dbName).then(db => {
+                    var obs = db.transaction(obsName, "readwrite").objectStore(obsName);
+                    let addReq = (key ? obs.add(data, key) : obs.add(data));
+                    addReq.onsuccess = (evt) => resolve(`Add data successful`);
+                    addReq.onerror = (evt) => reject(
+                        `Add data unsuccessful [${evt.target.error.name}] ${evt.target.error.message}`
+                    );
+                    db.close();
+                }).catch(error => reject(error));
+            });
+        },
+
+        removeData: function (obsName, key, dbName = this.defaultDB) {
+            return new Promise((resolve, reject) => {
+                this.openDB(dbName).then(db => {
+                    var obs = db.transaction(obsName, "readwrite").objectStore(obsName);
+                    let delReq = obs.delete(key);
+                    delReq.onsuccess = (evt) => resolve(`Removed Data ${key}`);
+                    delReq.onerror = (evt) => reject(
+                        `Remove data unsuccessful [${evt.target.error.name}] ${evt.target.error.message}`
+                    );
+                    db.close();
+                }).catch(error => reject(error));
+            });
+        },
+
+        clearData: function (obsName, dbName = this.defaultDB) {
+            return new Promise((resolve, reject) => {
+                this.openDB(dbName).then(db => {
+                    var obs = db.transaction(obsName, "readwrite").objectStore(obsName);
+                    let clearReq = obs.clear();
+                    clearReq.onsuccess = (evt) => resolve(`Clear data Successful`);
+                    clearReq.onerror = (evt) => reject(`Clear data Unsuccessful`);
+                    db.close();
+                }).catch(error => reject(error));
+            });
+        },
+
+        readData: function (obsName, key, dbName = this.defaultDB) {
+            return new Promise((resolve, reject) => {
+                this.openDB(dbName).then(db => {
+                    var obs = db.transaction(obsName, "readonly").objectStore(obsName);
+                    let getReq = obs.get(key);
+                    getReq.onsuccess = (evt) => resolve(evt.target.result);
+                    getReq.onerror = (evt) => reject(
+                        `Read data unsuccessful [${evt.target.error.name}] ${evt.target.error.message}`
+                    );
+                    db.close();
+                }).catch(error => reject(error));
+            });
+        },
+
+        readAllData: function (obsName, dbName = this.defaultDB) {
+            return new Promise((resolve, reject) => {
+                this.openDB(dbName).then(db => {
+                    var obs = db.transaction(obsName, "readonly").objectStore(obsName);
+                    var tmpResult = {}
+                    let curReq = obs.openCursor();
+                    curReq.onsuccess = (evt) => {
+                        var cursor = evt.target.result;
+                        if (cursor) {
+                            tmpResult[cursor.primaryKey] = cursor.value;
+                            cursor.continue();
+                        } else
+                            resolve(tmpResult);
+                    }
+                    curReq.onerror = (evt) => reject(
+                        `Read-All data unsuccessful [${evt.target.error.name}] ${evt.target.error.message}`
+                    );
+                    db.close();
+                }).catch(error => reject(error));
+            });
+        },
+
+        searchData: function (obsName, patternEval, dbName = this.defaultDB) {
+            return new Promise((resolve, reject) => {
+                this.openDB(dbName).then(db => {
+                    var obs = db.transaction(obsName, "readonly").objectStore(obsName);
+                    var filteredResult = {}
+                    let curReq = obs.openCursor();
+                    curReq.onsuccess = (evt) => {
+                        var cursor = evt.target.result;
+                        if (cursor) {
+                            if (patternEval(cursor.primaryKey, cursor.value))
+                                filteredResult[cursor.primaryKey] = cursor.value;
+                            cursor.continue();
+                        } else
+                            resolve(filteredResult);
+                    }
+                    curReq.onerror = (evt) => reject(
+                        `Search unsuccessful [${evt.target.error.name}] ${evt.target.error.message}`
+                    );
+                    db.close();
+                }).catch(error => reject(error));
+            });
         }
-        idb.onsuccess = (event) => {
-          var db = event.target.result;
-          if (JSON.stringify(Object.values(db.objectStoreNames).sort()) === JSON.stringify(Object.keys(
-              objectStores).sort()))
-            resolve("Initiated IndexedDB");
-          else
-            reject("IndexedDB already exist with different ObjectStores!");
-          db.close();
-        }
-      });
-    },
-
-    openDB: function (dbName = this.dbName) {
-      return new Promise((resolve, reject) => {
-        var idb = indexedDB.open(dbName);
-        idb.onerror = (event) => reject("Error in opening IndexedDB!");
-        idb.onsuccess = (event) => resolve(event.target.result);
-      });
-    },
-
-    deleteDB: function (dbName = this.dbName) {
-      return new Promise((resolve, reject) => {
-        var deleteReq = indexedDB.deleteDatabase(dbName);;
-        deleteReq.onerror = (event) => reject("Error deleting database!");
-        deleteReq.onsuccess = (event) => resolve("Database deleted successfully");
-      });
-    },
-
-    writeData: function (obsName, data, key = false, dbName = this.dbName) {
-      return new Promise((resolve, reject) => {
-        this.openDB(dbName).then(db => {
-          var obs = db.transaction(obsName, "readwrite").objectStore(obsName);
-          let writeReq = (key ? obs.put(data, key) : obs.put(data));
-          writeReq.onsuccess = (evt) => resolve(`Write data Successful`);
-          writeReq.onerror = (evt) => reject(
-            `Write data unsuccessful [${evt.target.error.name}] ${evt.target.error.message}`);
-          db.close();
-        }).catch(error => reject(error));
-      });
-    },
-
-    addData: function (obsName, data, key = false, dbName = this.dbName) {
-      return new Promise((resolve, reject) => {
-        this.openDB(dbName).then(db => {
-          var obs = db.transaction(obsName, "readwrite").objectStore(obsName);
-          let addReq = (key ? obs.add(data, key) : obs.add(data));
-          addReq.onsuccess = (evt) => resolve(`Add data successful`);
-          addReq.onerror = (evt) => reject(
-            `Add data unsuccessful [${evt.target.error.name}] ${evt.target.error.message}`);
-          db.close();
-        }).catch(error => reject(error));
-      });
-    },
-
-    removeData: function (obsName, key, dbName = this.dbName) {
-      return new Promise((resolve, reject) => {
-        this.openDB(dbName).then(db => {
-          var obs = db.transaction(obsName, "readwrite").objectStore(obsName);
-          let delReq = obs.delete(key);
-          delReq.onsuccess = (evt) => resolve(`Removed Data ${key}`);
-          delReq.onerror = (evt) => reject(
-            `Remove data unsuccessful [${evt.target.error.name}] ${evt.target.error.message}`);
-          db.close();
-        }).catch(error => reject(error));
-      });
-    },
-
-    readData: function (obsName, key, dbName = this.dbName) {
-      return new Promise((resolve, reject) => {
-        this.openDB(dbName).then(db => {
-          var obs = db.transaction(obsName, "readonly").objectStore(obsName);
-          let getReq = obs.get(key);
-          getReq.onsuccess = (evt) => resolve(evt.target.result);
-          getReq.onerror = (evt) => reject(
-            `Read data unsuccessful [${evt.target.error.name}] ${evt.target.error.message}`);
-          db.close();
-        }).catch(error => reject(error));
-      });
-    },
-
-    readAllData: function (obsName, dbName = this.dbName) {
-      return new Promise((resolve, reject) => {
-        this.openDB(dbName).then(db => {
-          var obs = db.transaction(obsName, "readonly").objectStore(obsName);
-          var tmpResult = {}
-          let curReq = obs.openCursor();
-          curReq.onsuccess = (evt) => {
-            var cursor = evt.target.result;
-            if (cursor) {
-              tmpResult[cursor.primaryKey] = cursor.value;
-              cursor.continue();
-            } else
-              resolve(tmpResult);
-          }
-          curReq.onerror = (evt) => reject(
-            `Read-All data unsuccessful [${evt.target.error.name}] ${evt.target.error.message}`);
-          db.close();
-        }).catch(error => reject(error));
-      });
-    },
-
-    searchData: function (obsName, patternEval, dbName = this.dbName) {
-      return new Promise((resolve, reject) => {
-        this.openDB(dbName).then(db => {
-          var obs = db.transaction(obsName, "readonly").objectStore(obsName);
-          var filteredResult = {}
-          let curReq = obs.openCursor();
-          curReq.onsuccess = (evt) => {
-            var cursor = evt.target.result;
-            if (cursor) {
-              if (patternEval(cursor.primaryKey, cursor.value))
-                filteredResult[cursor.primaryKey] = cursor.value;
-              cursor.continue();
-            } else
-              resolve(filteredResult);
-          }
-          curReq.onerror = (evt) => reject(
-            `Search unsuccessful [${evt.target.error.name}] ${evt.target.error.message}`);
-          db.close();
-        }).catch(error => reject(error));
-      });
     }
-  }
 </script>
 <script id="floCloudAPI">
     /* FLO Cloud operations to send/request application data*/
     const floCloudAPI = {
 
-        util:{
-            resetData: function(dataSet){
-                try{
+        util: {
+
+            lastCommit: {},
+
+            resetData: function (dataSet) {
+                try {
                     dataSet = JSON.parse(dataSet);
                     console.log(dataSet)
-                    for(vc in dataSet){
+                    for (vc in dataSet) {
                         var message = dataSet[vc].message;
-                        if(message.reset){
+                        if (message.reset) {
                             floGlobals.appObjects[message.object] = message.reset
                             floGlobals.vectorClock[message.object] = vc
-                            compactIDB.writeData("appObjects", floGlobals.appObjects[message.object], message.object)
+                            compactIDB.writeData("appObjects", floGlobals.appObjects[message.object], message
+                                .object)
                             compactIDB.writeData("vectorClock", vc, message.object)
                         }
                     }
-                }catch(error){
+                } catch (error) {
                     console.error(error)
                 }
             },
 
-            updateData: function(dataSet){
-                try{
+            updateData: function (dataSet) {
+                try {
                     dataSet = JSON.parse(dataSet);
                     console.log(dataSet)
-                    for(vc in dataSet){
-                            var message = dataSet[vc].message;
-                            if(message.diff){
-                                floGlobals.appObjects[message.object] = mergeDifference(floGlobals.appObjects[message.object], message.diff)
-                                compactIDB.writeData("appObjects",floGlobals.appObjects[message.object], message.object)
-                            }
+                    for (vc in dataSet) {
+                        var message = dataSet[vc].message;
+                        if (message.diff) {
+                            floGlobals.appObjects[message.object] = mergeDifference(floGlobals.appObjects[
+                                message.object], message.diff)
+                            compactIDB.writeData("appObjects", floGlobals.appObjects[message.object], message
+                                .object)
+                        }
                         floGlobals.vectorClock[message.object] = vc
                         compactIDB.writeData("vectorClock", vc, message.object)
                     }
-                }catch(error){
+                } catch (error) {
                     console.error(error)
                 }
             },
-        
-            storeGeneralData: function(filterStr, dataSet){
-                try{
+
+            storeGeneralData: function (filterStr, dataSet) {
+                try {
                     dataSet = JSON.parse(dataSet);
                     console.log(dataSet)
-                    if(!Array.isArray(floGlobals.generalData[filterStr]))
-                        floGlobals.generalData[filterStr] = [] 
-                    for(vc in dataSet){
-                        floGlobals.generalData[filterStr].push({sender: dataSet[vc].senderID, vectorClock: vc, message: dataSet[vc].message})
+                    if (!Array.isArray(floGlobals.generalData[filterStr]))
+                        floGlobals.generalData[filterStr] = []
+                    for (vc in dataSet) {
+                        floGlobals.generalData[filterStr].push({
+                            sender: dataSet[vc].senderID,
+                            vectorClock: vc,
+                            message: dataSet[vc].message
+                        })
                         compactIDB.writeData("generalData", floGlobals.generalData[filterStr], filterStr)
                         floGlobals.generalVC[filterStr] = vc
                         compactIDB.writeData("generalVC", vc, filterStr)
                     }
-                }catch(error){
+                } catch (error) {
                     console.error(error)
                 }
             }
         },
 
         //send Any message to supernode cloud storage
-        sendApplicationData: function(message, type, options = {}){
-            return new Promise((resolve,reject) => {
+        sendApplicationData: function (message, type, options = {}) {
+            return new Promise((resolve, reject) => {
                 var data = {
-                    senderID : myFloID,
+                    senderID: myFloID,
                     receiverID: options.receiverID || floGlobals.adminID,
-                    pubKey : myPubKey,
-                    message : message,
+                    pubKey: myPubKey,
+                    message: message,
                     sign: floCrypto.signData(JSON.stringify(message), myPrivKey),
-                    application : options.application || floGlobals.application,
+                    application: options.application || floGlobals.application,
                     type: type,
                     comment: options.comment || ""
                 }
@@ -9480,8 +9757,8 @@ Bitcoin.Util = {
         },
 
         //request any data from supernode cloud
-        requestApplicationData: function(options = {}){
-            return new Promise((resolve,reject) => {
+        requestApplicationData: function (options = {}) {
+            return new Promise((resolve, reject) => {
                 var request = {
                     receiverID: options.receiverID || floGlobals.adminID,
                     senderIDs: options.senderIDs || undefined,
@@ -9500,8 +9777,8 @@ Bitcoin.Util = {
         },
 
         //send General Data
-        sendGeneralData: function(message, type, options = {}){
-            return new Promise((resolve,reject) => {
+        sendGeneralData: function (message, type, options = {}) {
+            return new Promise((resolve, reject) => {
                 this.sendApplicationData(message, type, options)
                     .then(result => resolve(result))
                     .catch(error => reject(error))
@@ -9509,11 +9786,16 @@ Bitcoin.Util = {
         },
 
         //request General Data
-        requestGeneralData: function(type, options = {}){
-            return new Promise((resolve,reject) => {
-                var filterStr = JSON.stringify({application: options.application || floGlobals.application, type: type, comment: options.comment})
+        requestGeneralData: function (type, options = {}) {
+            return new Promise((resolve, reject) => {
+                var filterStr = JSON.stringify({
+                    application: options.application || floGlobals.application,
+                    type: type,
+                    comment: options.comment
+                })
                 options.type = type
-                options.lowerVectorClock = options.lowerVectorClock || floGlobals.generalVC[filterStr] + 1
+                options.lowerVectorClock = options.lowerVectorClock || floGlobals.generalVC[filterStr] +
+                    1
                 this.requestApplicationData(options).then(dataSet => {
                     this.util.storeGeneralData(filterStr, dataSet)
                     resolve('General Data Updated')
@@ -9522,57 +9804,66 @@ Bitcoin.Util = {
         },
 
         //request an object data from supernode cloud
-        requestObjectData: function(objectName, options = {}){
-            return new Promise((resolve,reject) => {
+        requestObjectData: function (objectName, options = {}) {
+            return new Promise((resolve, reject) => {
                 var request = {
                     receiverID: options.receiverID || floGlobals.adminID,
-                    senderIDs: (options.senderIDs === false) ? false: options.senderIDs || floGlobals.subAdmins,
+                    senderIDs: (options.senderIDs === false) ? false : options.senderIDs ||
+                        floGlobals.subAdmins,
                     application: options.application || floGlobals.application,
                     comment: options.comment,
                     type: `${objectName}@Reset`,
-                    lowerVectorClock: floGlobals.vectorClock[objectName]+1,
+                    lowerVectorClock: floGlobals.vectorClock[objectName] + 1,
                     mostRecent: true
                 }
-                floSupernode.requestData(JSON.stringify(request),request.receiverID).then(dataSet => {
+                floSupernode.requestData(JSON.stringify(request), request.receiverID).then(dataSet => {
                     this.util.resetData(dataSet)
                     request.type = `${objectName}@Update`
-                    request.lowerVectorClock = floGlobals.vectorClock[objectName]+1
+                    request.lowerVectorClock = floGlobals.vectorClock[objectName] + 1
                     request.mostRecent = false
-                    floSupernode.requestData(JSON.stringify(request), request.receiverID).then(dataSet => {
-                        this.util.updateData(dataSet)
-                        resolve('Object Data Updated')
-                    }).catch(error => reject(error))
+                    floSupernode.requestData(JSON.stringify(request), request.receiverID).then(
+                        dataSet => {
+                            this.util.updateData(dataSet)
+                            this.util.lastCommit[objectName] = JSON.stringify(floGlobals
+                                .appObjects[objectName])
+                            resolve('Object Data Updated')
+                        }).catch(error => reject(error))
                 }).catch(error => reject(error))
             })
         },
 
         //reset or initialize an object and send it to cloud
-        resetObjectData: function(newObject, objectName, options = {}){
-            return new Promise((resolve,reject) => {
+        resetObjectData: function (objectName, options = {}) {
+            return new Promise((resolve, reject) => {
                 var message = {
-                    division: options.division || floGlobals.division, 
-                    object: objectName, 
-                    vectorClock: floGlobals.vectorClock[objectName], 
-                    reset: newObject
+                    division: options.division || floGlobals.division,
+                    object: objectName,
+                    vectorClock: floGlobals.vectorClock[objectName],
+                    reset: floGlobals.appObjects[objectName]
                 }
-                this.sendApplicationData(message, `${objectName}@Reset`, options)
-                    .then(result => resolve(result))
-                    .catch(error => reject(error))
+                this.sendApplicationData(message, `${objectName}@Reset`, options).then(result => {
+                    this.util.lastCommit[objectName] = JSON.stringify(floGlobals.appObjects[
+                        objectName])
+                    resolve(result)
+                }).catch(error => reject(error))
             })
         },
 
         //update the diff and send it to cloud
-        updateObjectData: function(oldObject, newObject, objectName, options = {}){
-            return new Promise((resolve,reject) => {
+        updateObjectData: function (objectName, options = {}) {
+            return new Promise((resolve, reject) => {
                 var message = {
                     division: options.division || floGlobals.division,
-                    object: objectName, 
+                    object: objectName,
                     vectorClock: floGlobals.vectorClock[objectName],
-                    diff: findDifference(oldObject, newObject)
+                    diff: findDifference(JSON.parse(this.util.lastCommit[objectName]), floGlobals
+                        .appObjects[objectName])
                 }
-                this.sendApplicationData(message, `${objectName}@Update`, options)
-                    .then(result => resolve(result))
-                    .catch(error => reject(error))
+                this.sendApplicationData(message, `${objectName}@Update`, options).then(result => {
+                    this.util.lastCommit[objectName] = JSON.stringify(floGlobals.appObjects[
+                        objectName])
+                    resolve(result)
+                }).catch(error => reject(error))
             })
         }
     }
@@ -9581,28 +9872,31 @@ Bitcoin.Util = {
     /* General functions for FLO Dapps*/
     const floDapps = {
 
-        util:{
-            appObs:{},
+        util: {
+            appObs: {},
 
-            initIndexedDB: function(){
+            initIndexedDB: function () {
                 return new Promise((resolve, reject) => {
-                    var storageList = floGlobals.storageList;
                     var obj = {
                         //general
-                        lastTx:{},
+                        lastTx: {},
                         //supernode (cloud list)
-                        supernodes:{
-                            indexes:{ uri:null, pubKey:null }
+                        supernodes: {
+                            indexes: {
+                                uri: null,
+                                pubKey: null
+                            }
                         },
                         //login credentials
-                        credentials:{},
+                        credentials: {},
                         //for Dapps
-                        subAdmins:{},
-                        appObjects:{},
-                        vectorClock:{},
-                        generalData:{},
-                        generalVC:{},
-                         /* ecommerce app */
+                        subAdmins: {},
+                        appObjects: {},
+                        vectorClock: {},
+                        generalData: {},
+                        generalVC: {},
+
+                        /* ecommerce app */
                         // general purposes datastores
                         myInfo: {
                             indexes: {floId: null}
@@ -9616,100 +9910,123 @@ Bitcoin.Util = {
                         my_search_history: {},
 
                         // Cashier
-                        approved_buy_orders: {},
+                        approved_buy_orders: {}
                     }
                     //add other given objectStores
-                    for(o in this.appObs)
-                        if(!(o in obj))
+                    for (o in this.appObs)
+                        if (!(o in obj))
                             obj[o] = this.appObs[o]
                     compactIDB.initDB(floGlobals.application, obj).then(result => {
                         resolve("IndexedDB App Storage Initated Successfully")
                     }).catch(error => reject(error));
                 })
             },
-            
-            privKeyInput: function(){
-                return new Promise((resolve, reject) => {
-                    var privKey = prompt("Enter Private Key: ")
-                    if(privKey === null)
-                        reject(null)
-                    else
-                        resolve(privKey)
-                })
-            },
 
-            startUpFunctions:{
+            startUpFunctions: {
 
-                readSupernodeListFromAPI: function(){
-                    return new Promise((resolve,reject) => {
-                        compactIDB.readData("lastTx",floGlobals.SNStorageID).then(lastTx => {
-                            floBlockchainAPI.readData(floGlobals.SNStorageID,{ignoreOld:lastTx,sentOnly:true,pattern:"SuperNodeStorage"}).then(result => {
-                                for(var i=result.data.length-1;i>=0;i--){
-                                    var content = JSON.parse(result.data[i]).SuperNodeStorage;
-                                    for(sn in content.removeNodes)
-                                        compactIDB.removeData("supernodes",sn);
-                                    for(sn in content.addNodes)
-                                        compactIDB.writeData("supernodes",content.addNodes[sn],sn);
+                readSupernodeListFromAPI: function () {
+                    return new Promise((resolve, reject) => {
+                        compactIDB.readData("lastTx", floGlobals.SNStorageID).then(lastTx => {
+                            floBlockchainAPI.readData(floGlobals.SNStorageID, {
+                                ignoreOld: lastTx,
+                                sentOnly: true,
+                                pattern: "SuperNodeStorage"
+                            }).then(result => {
+                                for (var i = result.data.length - 1; i >= 0; i--) {
+                                    var content = JSON.parse(result.data[i])
+                                        .SuperNodeStorage;
+                                    for (sn in content.removeNodes)
+                                        compactIDB.removeData("supernodes", sn);
+                                    for (sn in content.addNodes)
+                                        compactIDB.writeData("supernodes", content
+                                            .addNodes[sn], sn);
                                 }
-                                compactIDB.writeData("lastTx",result.totalTxs,floGlobals.SNStorageID);
+                                compactIDB.writeData("lastTx", result.totalTxs,
+                                    floGlobals.SNStorageID);
                                 compactIDB.readAllData("supernodes").then(result => {
                                     floGlobals.supernodes = result;
-                                    
-                                    floSupernode.kBucket.launch(Object.keys(floGlobals.supernodes),floGlobals.SNStorageID)
-                                        .then(result => resolve("Loaded Supernode list\n"+result))                   
+
+                                    floSupernode.kBucket.launch(Object.keys(
+                                                floGlobals.supernodes),
+                                            floGlobals.SNStorageID)
+                                        .then(result => resolve(
+                                            "Loaded Supernode list\n" +
+                                            result))
                                 })
                             })
                         }).catch(error => reject(error))
                     })
                 },
 
-                readSubAdminListFromAPI: function(){
-                    return new Promise((resolve,reject) => {
-                        compactIDB.readData("lastTx",floGlobals.adminID).then(lastTx => {
-                            floBlockchainAPI.readData(floGlobals.adminID,{ignoreOld:lastTx,sentOnly:true,pattern:floGlobals.application}).then(result => {
-                                for(var i=result.data.length-1;i>=0;i--){
-                                    var content = JSON.parse(result.data[i])[floGlobals.application];
-                                    if(Array.isArray(content.removeSubAdmin))
-                                        for(var j = 0; j < content.removeSubAdmin.length; j++)
-                                            compactIDB.removeData("subAdmins",content.removeSubAdmin[j]);
-                                    if(Array.isArray(content.addSubAdmin))
-                                        for(var k = 0; k < content.addSubAdmin.length; k++)
-                                            compactIDB.writeData("subAdmins",true,content.addSubAdmin[k]);
+                readSubAdminListFromAPI: function () {
+                    return new Promise((resolve, reject) => {
+                        compactIDB.readData("lastTx", floGlobals.adminID).then(lastTx => {
+                            floBlockchainAPI.readData(floGlobals.adminID, {
+                                ignoreOld: lastTx,
+                                sentOnly: true,
+                                pattern: floGlobals.application
+                            }).then(result => {
+                                for (var i = result.data.length - 1; i >= 0; i--) {
+                                    var content = JSON.parse(result.data[i])[floGlobals
+                                        .application];
+                                    if (Array.isArray(content.removeSubAdmin))
+                                        for (var j = 0; j < content.removeSubAdmin
+                                            .length; j++)
+                                            compactIDB.removeData("subAdmins", content
+                                                .removeSubAdmin[j]);
+                                    if (Array.isArray(content.addSubAdmin))
+                                        for (var k = 0; k < content.addSubAdmin
+                                            .length; k++)
+                                            compactIDB.writeData("subAdmins", true,
+                                                content.addSubAdmin[k]);
                                 }
-                                compactIDB.writeData("lastTx",result.totalTxs,floGlobals.adminID);
+                                compactIDB.writeData("lastTx", result.totalTxs,
+                                    floGlobals.adminID);
                                 compactIDB.readAllData("subAdmins").then(result => {
                                     floGlobals.subAdmins = Object.keys(result);
-                                    resolve("Read subAdmins from blockchain");                    
+                                    resolve("Read subAdmins from blockchain");
                                 })
                             })
                         }).catch(error => reject(error))
                     })
                 },
 
-                loadDataFromIDB: function(){
-                    return new Promise((resolve,reject) => {
+                loadDataFromIDB: function () {
+                    return new Promise((resolve, reject) => {
                         var loadData = ["appObjects", "vectorClock", "generalData", "generalVC"]
                         var promises = []
-                        for(var i = 0; i < loadData.length; i++)
+                        for (var i = 0; i < loadData.length; i++)
                             promises[i] = compactIDB.readAllData(loadData[i])
                         Promise.all(promises).then(results => {
-                            for(var i = 0; i < loadData.length; i++)
+                            for (var i = 0; i < loadData.length; i++)
                                 floGlobals[loadData[i]] = results[i]
                             resolve("Loaded Data from IDB")
                         }).catch(error => reject(error))
                     })
                 },
 
-                getCredentials: function(){
+                getCredentials: function () {
 
-                    var readSharesFromIDB = function(indexArr){
+                    const defaultInput = function (type) {
+                        return new Promise((resolve, reject) => {
+                            let inputVal = prompt(`Enter ${type}: `)
+                            if (inputVal === null)
+                                reject(null)
+                            else
+                                resolve(inputVal)
+                        })
+                    }
+
+                    const inputFn = this.getCredentials.privKeyInput || defaultInput;
+
+                    const readSharesFromIDB = function (indexArr) {
                         return new Promise((resolve, reject) => {
                             var promises = []
-                            for(var i = 0; i < indexArr.length; i++)
+                            for (var i = 0; i < indexArr.length; i++)
                                 promises.push(compactIDB.readData('credentials', indexArr[i]))
                             Promise.all(promises).then(shares => {
                                 var secret = floCrypto.retrieveShamirSecret(shares)
-                                if(secret)
+                                if (secret)
                                     resolve(secret)
                                 else
                                     reject("Shares are insufficient or incorrect")
@@ -9717,38 +10034,39 @@ Bitcoin.Util = {
                         })
                     }
 
-                    var writeSharesToIDB = function(shares, i = 0, resultIndexes = []){
+                    const writeSharesToIDB = function (shares, i = 0, resultIndexes = []) {
                         return new Promise((resolve, reject) => {
-                            if(i >= shares.length)
+                            if (i >= shares.length)
                                 return resolve(resultIndexes)
                             var n = floCrypto.randInt(0, 100000)
                             compactIDB.addData("credentials", shares[i], n).then(res => {
                                 resultIndexes.push(n)
-                                writeSharesToIDB(shares, i+1, resultIndexes)
+                                writeSharesToIDB(shares, i + 1, resultIndexes)
                                     .then(result => resolve(result))
                             }).catch(error => {
                                 writeSharesToIDB(shares, i, resultIndexes)
                                     .then(result => resolve(result))
                             })
-                        }) 
+                        })
                     }
 
-                    var getPrivateKeyCredentials = function(){
+                    const getPrivateKeyCredentials = function () {
                         return new Promise((resolve, reject) => {
                             var indexArr = localStorage.getItem(`${floGlobals.application}#privKey`)
-                            if(indexArr){
+                            if (indexArr) {
                                 readSharesFromIDB(JSON.parse(indexArr))
                                     .then(result => resolve(result))
                                     .catch(error => reject(error))
-                            }else{
+                            } else {
                                 var privKey;
-                                floDapps.util.privKeyInput().then(result => {
-                                    try{
-                                        if(!result)
+                                inputFn("PRIVATE_KEY").then(result => {
+                                    try {
+                                        if (!result)
                                             return reject("Empty Private Key")
-                                        var floID = floCrypto.getFloIDfromPubkeyHex(floCrypto.getPubKeyHex(result))
+                                        var floID = floCrypto.getFloIDfromPubkeyHex(
+                                            floCrypto.getPubKeyHex(result))
                                         privKey = result
-                                    }catch(error){
+                                    } catch (error) {
                                         console.error(error)
                                         return reject("Invalid Private Key")
                                     }
@@ -9756,63 +10074,103 @@ Bitcoin.Util = {
                                     console.log(error, "Generating Random Keys")
                                     privKey = floCrypto.generateNewID().privKey
                                 }).finally(_ => {
-                                    var threshold = floCrypto.randInt(10,20)
-                                    writeSharesToIDB(floCrypto.createShamirsSecretShares(privKey, threshold, threshold)).then(resultIndexes =>{
-                                        //store index keys in localStorage
-                                        localStorage.setItem(`${floGlobals.application}#privKey`, JSON.stringify(resultIndexes))
-                                        //also add a dummy privatekey to the IDB
-                                        var randomPrivKey = floCrypto.generateNewID().privKey
-                                        var randomThreshold = floCrypto.randInt(10,20)
-                                        writeSharesToIDB(floCrypto.createShamirsSecretShares(randomPrivKey, randomThreshold, randomThreshold))
-                                        //resolve private Key
-                                        resolve(privKey)
-                                    }).catch(error => reject(error))
+                                    var threshold = floCrypto.randInt(10, 20)
+                                    writeSharesToIDB(floCrypto.createShamirsSecretShares(
+                                        privKey, threshold, threshold)).then(
+                                        resultIndexes => {
+                                            //store index keys in localStorage
+                                            localStorage.setItem(
+                                                `${floGlobals.application}#privKey`,
+                                                JSON.stringify(resultIndexes))
+                                            //also add a dummy privatekey to the IDB
+                                            var randomPrivKey = floCrypto
+                                            .generateNewID().privKey
+                                            var randomThreshold = floCrypto.randInt(10,
+                                                20)
+                                            writeSharesToIDB(floCrypto
+                                                .createShamirsSecretShares(
+                                                    randomPrivKey, randomThreshold,
+                                                    randomThreshold))
+                                            //resolve private Key
+                                            resolve(privKey)
+                                        }).catch(error => reject(error))
                                 })
                             }
                         })
                     }
 
+                    const checkIfPinRequired = function(key){
+                        return new Promise((resolve, reject) => {
+                            if(key.length == 52)
+                                resolve(key)
+                            else {
+                                inputFn("PIN/Password").then(pwd => {
+                                    try{
+                                        let privKey = Crypto.AES.decrypt(key, pwd);
+                                        resolve(privKey)
+                                    }catch(error){
+                                        reject("Access Denied: Incorrect PIN/Password")
+                                    }                                   
+                                }).catch(error => reject("Access Denied: PIN/Password required"))
+                            } 
+                        })
+                    }
+
                     return new Promise((resolve, reject) => {
-                        getPrivateKeyCredentials().then(privKey => {
-                            myPrivKey = privKey
-                            myPubKey = floCrypto.getPubKeyHex(myPrivKey)
-                            myFloID = floCrypto.getFloIDfromPubkeyHex(myPubKey)
-                            resolve('Login Credentials loaded successful')
+                        getPrivateKeyCredentials().then(key => {
+                            checkIfPinRequired(key).then(privKey => {
+                                try{
+                                    myPrivKey = privKey
+                                    myPubKey = floCrypto.getPubKeyHex(myPrivKey)
+                                    myFloID = floCrypto.getFloIDfromPubkeyHex(myPubKey)
+                                    resolve('Login Credentials loaded successful')
+                                }catch(error){
+                                    reject("Corrupted Private Key")
+                                }
+                            }).catch(error => reject(error))
                         }).catch(error => reject(error))
                     })
                 }
-    
             },
 
-            callStartUpFunction: function(fname){
+            callStartUpFunction: function (fname) {
                 return new Promise((resolve, reject) => {
                     this.startUpFunctions[fname]().then(result => {
                         this.callStartUpFunction.completed += 1
-                        reactor.dispatchEvent("startUpSuccessLog",`${result}\nCompleted ${this.callStartUpFunction.completed}/${this.callStartUpFunction.total} Startup functions`)
+                        reactor.dispatchEvent("startUpSuccessLog",
+                            `${result}\nCompleted ${this.callStartUpFunction.completed}/${this.callStartUpFunction.total} Startup functions`
+                            )
                         resolve(true)
                     }).catch(error => {
                         this.callStartUpFunction.failed += 1
-                        reactor.dispatchEvent("startUpErrorLog",`${error}\nFailed ${this.callStartUpFunction.failed}/${this.callStartUpFunction.total} Startup functions`)
+                        reactor.dispatchEvent("startUpErrorLog",
+                            `${error}\nFailed ${this.callStartUpFunction.failed}/${this.callStartUpFunction.total} Startup functions`
+                            )
                         reject(false)
                     })
                 })
             },
 
-            getFilterString: function(type, options = {}){
-                var filterStr = JSON.stringify({application: options.application || floGlobals.application, type: type, comment: options.comment})
+            getFilterString: function (type, options = {}) {
+                var filterStr = JSON.stringify({
+                    application: options.application || floGlobals.application,
+                    type: type,
+                    comment: options.comment
+                })
                 return filterStr
             }
         },
-        
-        launchStartUp: function(){
-            return new Promise((resolve,reject) => {
+
+        launchStartUp: function () {
+            return new Promise((resolve, reject) => {
                 this.util.initIndexedDB().then(log => {
                     console.log(log)
-                    this.util.callStartUpFunction.total = Object.keys(this.util.startUpFunctions).length
+                    this.util.callStartUpFunction.total = Object.keys(this.util
+                        .startUpFunctions).length
                     this.util.callStartUpFunction.completed = 0
                     this.util.callStartUpFunction.failed = 0
                     var promises = []
-                    for(fn in this.util.startUpFunctions)
+                    for (fn in this.util.startUpFunctions)
                         promises.push(this.util.callStartUpFunction(fn))
                     Promise.all(promises)
                         .then(results => resolve('App Startup finished successful'))
@@ -9820,67 +10178,85 @@ Bitcoin.Util = {
                 })
             })
         },
-        
-        addStartUpFunction: function(fname, fn){
-            if(fname in this.util.startUpFunctions)
-                throw(`Function ${fname} already defined`)
+
+        addStartUpFunction: function (fname, fn) {
+            if (fname in this.util.startUpFunctions)
+                throw (`Function ${fname} already defined`)
             this.util.startUpFunctions[fname] = fn;
         },
 
-        setCustomPrivKeyInput: function(customFn){
-            this.util.privKeyInput = customFn
+        setCustomPrivKeyInput: function (customFn) {
+            this.util.startUpFunctions.getCredentials.privKeyInput = customFn
         },
 
-        setAppObjectStores: function(appObs){
+        setAppObjectStores: function (appObs) {
             this.util.appObs = appObs
         },
-        
-        manageSubAdmins(adminPrivKey, addList, rmList){
+
+        manageSubAdmins(adminPrivKey, addList, rmList) {
             return new Promise((resolve, reject) => {
-                if(!Array.isArray(addList)) addList = undefined;
-                if(!Array.isArray(rmList)) rmList = undefined;
+                if (!Array.isArray(addList)) addList = undefined;
+                if (!Array.isArray(rmList)) rmList = undefined;
                 var floData = {
-                    [floGlobals.application] : {
-                        addSubAdmin : addList,
+                    [floGlobals.application]: {
+                        addSubAdmin: addList,
                         removeSubAdmin: rmList,
                     }
                 }
                 var floID = floCrypto.getFloIDfromPubkeyHex(floCrypto.getPubKeyHex(adminPrivKey))
-                if(floID != floGlobals.adminID)
+                if (floID != floGlobals.adminID)
                     reject('Access Denied for Admin privilege')
                 else
                     floBlockchainAPI.writeData(floID, JSON.stringify(floData), adminPrivKey)
-                        .then(result => resolve(['Updated SubAdmin List', result]))
-                        .catch(error => reject(error))
+                    .then(result => resolve(['Updated SubAdmin List', result]))
+                    .catch(error => reject(error))
             })
         },
 
-        clearCredentials: function(){
-            var indexArr = localStorage.getItem(`${floGlobals.application}#privKey`)
-            if(!indexArr)
-                return `privKey credentials not found!`
-            indexArr = JSON.parse(indexArr)
-            indexArr.forEach(i => compactIDB.removeData('credentials', i))
-            localStorage.removeItem(`${floGlobals.application}#privKey`)
-                return `privKey credentials deleted!`
+        clearCredentials: function () {
+            return new Promise((resolve, reject) => {
+                compactIDB.clearData('credentials').then(result => {
+                    localStorage.removeItem(`${floGlobals.application}#privKey`)
+                    myPrivKey = myPubKey = myFloID = undefined;
+                    resolve("privKey credentials deleted!")
+                }).catch(error => reject(error))
+            })
         },
 
-        objectDataMapper: function(object, path, data){
-                var resObject = JSON.parse(JSON.stringify(object))
-                var pos = resObject;
-                path.forEach(p => pos = pos[p])
-                if(Array.isArray(pos)){
-                    pos.push(data)
-                    return resObject
-                }else
-                    throw('Path is not an Array')
+        securePrivKey: function(pwd){
+            return new Promise((resolve, reject) => {
+                let indexArr = localStorage.getItem(`${floGlobals.application}#privKey`)
+                if(!indexArr)
+                    return reject("PrivKey not found");
+                indexArr = JSON.parse(indexArr)
+                let encryptedKey = Crypto.AES.encrypt(myPrivKey, pwd);
+                let threshold = indexArr.length;
+                let shares = floCrypto.createShamirsSecretShares(encryptedKey, threshold, threshold)
+                let promises = []; 
+                for(var i=0; i<threshold;i++)
+                    promises.push(compactIDB.writeData("credentials", shares[i], indexArr[i], floGlobals.application));
+                Promise.all(promises)
+                    .then(results => resolve("Private Key Secured"))
+                    .catch(error => reject(error))
+            })
         },
 
-        getNextGeneralData: function(type, vectorClock, options = {}){
+        objectDataMapper: function (object, path, data) {
+            var resObject = JSON.parse(JSON.stringify(object))
+            var pos = resObject;
+            path.forEach(p => pos = pos[p])
+            if (Array.isArray(pos)) {
+                pos.push(data)
+                return resObject
+            } else
+                throw ('Path is not an Array')
+        },
+
+        getNextGeneralData: function (type, vectorClock, options = {}) {
             var filter = this.util.getFilterString(type, options)
             var filteredResult = []
-            for(var i = 0; i<floGlobals.generalData[filter].length; i++)
-                if(floGlobals.generalData[filter][i].vectorClock > vectorClock)
+            for (var i = 0; i < floGlobals.generalData[filter].length; i++)
+                if (floGlobals.generalData[filter][i].vectorClock > vectorClock)
                     filteredResult.push(floGlobals.generalData[filter][i])
             return filteredResult
         }
@@ -11364,4 +11740,5 @@ Bitcoin.Util = {
 <div id="renderList"></div>
 <div id="latestBuyOrdersList"></div>
 <div id="myPurchasedItemsList"></div>
+
 </html>
