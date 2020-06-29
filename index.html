@@ -10589,7 +10589,7 @@ Bitcoin.Util = {
             }
             if(LIVE_USER.user_info.user_role==='SELLER') {
                 LIVE_USER.user_info.list_products_to_sell();
-                floCloudAPI.requestGeneralData(ecommerce.master_configurations.DATA_TYPE.BUY_ORDERS, {receiverID:myFloID});
+                await floCloudAPI.requestGeneralData(ecommerce.master_configurations.DATA_TYPE.BUY_ORDERS, {receiverID:myFloID});
                 LIVE_USER.user_info.list_buy_orders();
             }
             
@@ -10601,7 +10601,7 @@ Bitcoin.Util = {
             promises.push(floCloudAPI.requestObjectData(ecommerce.master_configurations.SUBJECT, { receiverID, senderIDs }));
             if(floGlobals.subAdmins.includes(myFloID)) {
                 promises.push(floCloudAPI.requestGeneralData(ecommerce.master_configurations.DATA_TYPE.SELLING_PRODUCTS, 
-                { receiverID:floGlobals.adminID, senderIDs:Object.keys(ecommerce.master_configurations.sellers_list) }))
+                { senderIDs:Object.keys(ecommerce.master_configurations.sellers_list) }))
             }
             for (const key in ecommerce.master_configurations.DATA_TYPE) {
                 if (ecommerce.master_configurations.DATA_TYPE.hasOwnProperty(key)) {
@@ -10810,7 +10810,7 @@ Bitcoin.Util = {
 
                     if(generalData.length<1) {
                         await floCloudAPI.requestGeneralData(ecommerce.master_configurations.DATA_TYPE.SELLING_PRODUCTS, 
-                        { receiverID:floGlobals.adminID, senderIDs:Object.keys(ecommerce.master_configurations.sellers_list) })
+                        { senderIDs:Object.keys(ecommerce.master_configurations.sellers_list) })
                     
                         generalData = floGlobals.generalData[JSON.stringify(
                         { application: floGlobals.application, 
@@ -10894,10 +10894,9 @@ Bitcoin.Util = {
 
                 const input_data = {};
                 input_data[nayaProduct[product_type].product_info.product_static_information.product_flo_id]=nayaProduct[product_type]
-                floCloudAPI.sendGeneralData(input_data, ecommerce.master_configurations.DATA_TYPE.SELLING_PRODUCTS, { receiverID: floGlobals.adminID, senderIDs: [myFloID] })
-
-                showMessage("Product added into the cloud successfully.", "SUCCESS");
-
+                floCloudAPI.sendGeneralData(input_data, ecommerce.master_configurations.DATA_TYPE.SELLING_PRODUCTS).then(result => {
+                    showMessage("Product added into the cloud successfully.", "SUCCESS");
+                })
                 return true;
             } catch (error) {
                 throw new Error(error);
@@ -11001,7 +11000,7 @@ Bitcoin.Util = {
                             let signed_ticket = ticket+' VendorSignature: '+seller_sig; 
                            
                             let ticket_sent = await floCloudAPI.sendGeneralData(signed_ticket, ecommerce.master_configurations.DATA_TYPE.PURCHASED_ITEMS, 
-                            { receiverID: buyer, senderIDs: [myFloID] })
+                            { receiverID: buyer })
 
                             console.log(ticket_sent);
                             if(typeof ticket_sent == "object") {
@@ -11277,8 +11276,8 @@ Bitcoin.Util = {
                         // Store info in local history
                         compactIDB.addData('my_orders_history', buy_order_object, buy_order_object.txid);
 
-                        floCloudAPI.sendGeneralData(buy_order_object, ecommerce.master_configurations.DATA_TYPE.BUY_ORDERS, 
-                        {receiverID:vendor_addr, senderIDs: [myFloID]});
+                        await floCloudAPI.sendGeneralData(buy_order_object, ecommerce.master_configurations.DATA_TYPE.BUY_ORDERS, 
+                        {receiverID:vendor_addr});
 
                         this.reset_bucket_list();
 
@@ -11307,7 +11306,7 @@ Bitcoin.Util = {
                     compactIDB.addData('my_orders_history', buy_order_object, buy_order_object.txid);
 
                     floCloudAPI.sendGeneralData(buy_order_object, ecommerce.master_configurations.DATA_TYPE.BUY_ORDERS, 
-                    {receiverID:cashier, senderIDs: [myFloID]});
+                    {receiverID:cashier});
 
                     // const payment_info_data = {
                     //     payment_amount: this.final_price,
@@ -11465,14 +11464,14 @@ Bitcoin.Util = {
             // flo_ecommerce[cityname].Messages["cashier_messages"] = {}
             // flo_ecommerce[cityname].Messages["delivery_messages"] = {}
             // flo_ecommerce[cityname].Messages["manager_messages"] = {}
+            floGlobals.appObjects[ecommerce.master_configurations.SUBJECT] = flo_ecommerce;
             
-            floCloudAPI.resetObjectData(flo_ecommerce, ecommerce.master_configurations.SUBJECT,
-                    { receiverID: floGlobals.adminID });  
+            floCloudAPI.resetObjectData(ecommerce.master_configurations.SUBJECT); 
         },
         // Load ecommerce data relevent to an admin
         get_general_data: async function() {
             await floCloudAPI.requestGeneralData(ecommerce.master_configurations.DATA_TYPE.SELLING_PRODUCTS, 
-            { receiverID:floGlobals.adminID, senderIDs:Object.keys(ecommerce.master_configurations.sellers_list) })
+            { senderIDs:Object.keys(ecommerce.master_configurations.sellers_list) })
 
             const new_generalData = floGlobals.generalData[JSON.stringify({ application: floGlobals.application, type: ecommerce.master_configurations.DATA_TYPE.SELLING_PRODUCTS })];
             
@@ -11550,9 +11549,7 @@ Bitcoin.Util = {
 
                 console.log(admin_approval_signature);
 
-                const ROOT_OBJECT = JSON.parse(JSON.stringify(floGlobals.appObjects
-                    [ecommerce.master_configurations.SUBJECT]
-                ));
+                const ROOT_OBJECT = floGlobals.appObjects[ecommerce.master_configurations.SUBJECT];
 
                 if(typeof ROOT_OBJECT !== "object" || ROOT_OBJECT==null) {
                     showMessage("Undefined Object. Approval process failed.", "ERROR");
@@ -11569,14 +11566,11 @@ Bitcoin.Util = {
                 ROOT_OBJECT.Products[product_static_info.seller_flo_id]
                     [product_static_info.product_flo_id] = admin_approval_signature;
 
-                floCloudAPI.updateObjectData(floGlobals.appObjects[ecommerce.master_configurations.SUBJECT], 
-                    ROOT_OBJECT, ecommerce.master_configurations.SUBJECT, { receiverID: floGlobals.adminID });
-
-                ecommerce.actions.retrieveLatestContent();
-
-                showMessage(`Product ID ${product_static_info.product_flo_id} approved successfully.`);
-                return true;
-
+                floCloudAPI.updateObjectData(ecommerce.master_configurations.SUBJECT).then(result => {
+                    ecommerce.actions.retrieveLatestContent();
+                    showMessage(`Product ID ${product_static_info.product_flo_id} approved successfully.`);
+                    return true;
+                })
             } catch (error) {
                 throw new Error(error);
             }
