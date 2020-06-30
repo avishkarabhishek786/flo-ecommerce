@@ -10802,40 +10802,33 @@ Bitcoin.Util = {
         },
         // Segregate admin approved products from general objects
         get_approved_products_list: async function() {
-                try {
-                    let generalData = floGlobals.generalData[JSON.stringify(
-                        { application: floGlobals.application, 
-                          type: ecommerce.master_configurations.DATA_TYPE.SELLING_PRODUCTS 
-                        })];
+            try {
+                await floCloudAPI.requestGeneralData(ecommerce.master_configurations.DATA_TYPE.SELLING_PRODUCTS, 
+                    { senderIDs:Object.keys(ecommerce.master_configurations.sellers_list) });
 
-                    if(generalData.length<1) {
-                        await floCloudAPI.requestGeneralData(ecommerce.master_configurations.DATA_TYPE.SELLING_PRODUCTS, 
-                        { senderIDs:Object.keys(ecommerce.master_configurations.sellers_list) })
+                let generalData = floGlobals.generalData[JSON.stringify(
+                    { application: floGlobals.application, 
+                        type: ecommerce.master_configurations.DATA_TYPE.SELLING_PRODUCTS 
+                    })];
                     
-                        generalData = floGlobals.generalData[JSON.stringify(
-                        { application: floGlobals.application, 
-                          type: ecommerce.master_configurations.DATA_TYPE.SELLING_PRODUCTS 
-                        })];
-                    }
-                        
-                    const certified_products = generalData
-                            .map(m=>m.message[Object.keys(m.message)[0]])
-                            .filter(f=>ecommerce.approved_products_ids
-                                .includes(f.product_info.product_static_information.product_flo_id));
+                const certified_products = generalData
+                        .map(m=>m.message[Object.keys(m.message)[0]])
+                        .filter(f=>ecommerce.approved_products_ids
+                            .includes(f.product_info.product_static_information.product_flo_id));
 
-                    Object.defineProperty(ecommerce, "approved_products_list",
-                        {
-                            value: certified_products,
-                            writable: false,
-                            configurable: false,
-                            enumerable: true
-                        });
+                Object.defineProperty(ecommerce, "approved_products_list",
+                    {
+                        value: certified_products,
+                        writable: false,
+                        configurable: false,
+                        enumerable: true
+                    });
 
-                    return ecommerce.approved_products_list;
-               
-                } catch (error) {
-                    throw new Error(error);
-                }
+                return ecommerce.approved_products_list;
+            
+            } catch (error) {
+                throw new Error(error);
+            }
             
         },
         get_product_details_by_floId: function(productFloId='') {
@@ -11000,11 +10993,13 @@ Bitcoin.Util = {
                             let signed_ticket = ticket+' VendorSignature: '+seller_sig; 
                            
                             let ticket_sent = await floCloudAPI.sendGeneralData(signed_ticket, ecommerce.master_configurations.DATA_TYPE.PURCHASED_ITEMS, 
-                            { receiverID: buyer })
+                            { receiverID: buyer });
 
                             console.log(ticket_sent);
                             if(typeof ticket_sent == "object") {
-                                // add buy_txid to dispatched items table
+                                // add buy_txid to personal records
+                                // floCloudAPI.sendGeneralData(signed_ticket, ecommerce.master_configurations.DATA_TYPE.PROCESSED_PURCHASED_ITEMS, 
+                                // { receiverID: myFloID });
                             }
                            
                             break;
@@ -11014,6 +11009,34 @@ Bitcoin.Util = {
                     }
 
                 } else if(product_details.product_static_information.product_type==="PHYSICAL") {
+
+                    switch (product) {
+                        case "Milko":
+                            let commodity = `
+                                Buy_Txid: ${buy_txid}
+                                Buyer Id: ${buyer}
+                                Product: ${product_details.product_dynamic_information.product_name}   
+                                Movie DateTime: ${product_details.product_dynamic_information.movie_datetime}
+                            `;
+
+                            let seller_sig = floCrypto.signData(ticket, myPrivKey)
+
+                            let signed_ticket = ticket+' VendorSignature: '+seller_sig; 
+                           
+                            let ticket_sent = await floCloudAPI.sendGeneralData(signed_ticket, ecommerce.master_configurations.DATA_TYPE.PURCHASED_ITEMS, 
+                            { receiverID: buyer });
+
+                            console.log(ticket_sent);
+                            if(typeof ticket_sent == "object") {
+                                // add buy_txid to personal records
+                                // floCloudAPI.sendGeneralData(signed_ticket, ecommerce.master_configurations.DATA_TYPE.PROCESSED_PURCHASED_ITEMS, 
+                                // { receiverID: myFloID });
+                            }
+                            break;
+                    
+                        default:
+                            break;
+                    }
 
                 }
             
@@ -11123,6 +11146,8 @@ Bitcoin.Util = {
                 // Reset buy price
                 this.total_buying_price = 0;
                 let bill_preview = [];
+                let billPreviewUI = ``;
+                console.log(this.buy_list);
                 for (const buying_product_info in this.buy_list) {
                     if (this.buy_list.hasOwnProperty(buying_product_info)) {
                         const item = this.buy_list[buying_product_info];
@@ -11138,15 +11163,17 @@ Bitcoin.Util = {
                                 )) {
 
                                     let item_name = product_details.product_info.product_dynamic_information.product_name;
-                                    
+                                    let item_flo_id = product_details.product_info.product_static_information.product_flo_id;
+
                                     // Prevent duplicate registration of products in shopping_list
                                     if(!this.shopping_bill.shopping_list.some(s=>s.product_info.product_static_information.product_flo_id
                                         ===product_details.product_info.product_static_information.product_flo_id)) {
                                         this.shopping_bill.shopping_list.push(product_details);
+                                        this.shopping_bill.quantity[item_flo_id] = Number(item.buying_units);    
+                                    } else {
+                                        this.shopping_bill.quantity[item_flo_id] = this.buy_list.filter(m=>m.product_flo_id===item_flo_id).length;
                                     }
-
-                                    this.shopping_bill.quantity[item_name] = Number(item.buying_units);
-
+                                    
                                     bill_preview.push({
                                         "product": item_name,
                                         "price": product_details.product_info.product_dynamic_information.selling_price,
@@ -11160,6 +11187,7 @@ Bitcoin.Util = {
                                         );
                                 }
                             }
+
                         } else {
                             console.error(`Product with id ${item.product_flo_id} not found`);
                             continue;
@@ -11173,15 +11201,19 @@ Bitcoin.Util = {
                 this.final_price = to_fiat_number(this.total_buying_price);
                 this.shopping_bill.final_price = this.final_price;
                 console.log(this.shopping_bill);
-                //return this.shopping_bill;
+                
+                for (const _list of this.shopping_bill.shopping_list) {
+                    let sp = _list.product_info.product_dynamic_information.selling_price;
+                    let qty = this.shopping_bill.quantity[_list.product_info.product_static_information.product_flo_id];
+                    billPreviewUI += `
+                        <p>Product: ${_list.product_info.product_dynamic_information.product_name}</p>
+                        <p>Price: ${sp}</p>
+                        <p>Quantity: ${qty}</p>
+                        <p>Total: ${Math.floor(sp*qty)}</p><hr>
+                    `;   
+                }
 
-                //billPreview
-                let billPreviewUI = `
-                    <p>Product: ${this.shopping_bill.shopping_list[0].product_info.product_dynamic_information.product_name}</p>
-                    <p>Price: ${this.shopping_bill.shopping_list[0].product_info.product_dynamic_information.selling_price}</p>
-                    <p>Quantity: ${this.shopping_bill.quantity[this.shopping_bill.shopping_list[0].product_info.product_dynamic_information.product_name]}</p>
-                    <h5>Total: ${this.shopping_bill.final_price}</h5>
-                `;
+                billPreviewUI += `<hr><h5>Total: ${this.shopping_bill.final_price}</h5>`;
 
                 document.getElementById('billPreview').innerHTML=billPreviewUI;
                 document.getElementById('item_delivery_addr').innerHTML=localStorage.getItem("FloECommerceUserAddress");
@@ -11245,6 +11277,8 @@ Bitcoin.Util = {
                 }
 
                 console.log(buy_order_object);
+                return;
+
                 
                 if(pay_using_wallet===true) {
                     const flo_comment = `transfer ${this.final_price} rupee#`;                
@@ -11305,15 +11339,19 @@ Bitcoin.Util = {
                     // Store info in local history
                     compactIDB.addData('my_orders_history', buy_order_object, buy_order_object.txid);
 
-                    floCloudAPI.sendGeneralData(buy_order_object, ecommerce.master_configurations.DATA_TYPE.BUY_ORDERS, 
+                    let send_payment_info = await floCloudAPI.sendGeneralData(buy_order_object, ecommerce.master_configurations.DATA_TYPE.BUY_ORDERS, 
                     {receiverID:cashier});
+
+                    console.log(send_payment_info);
+
+                    showMessage('Payment request sent to cashier.')
 
                     // const payment_info_data = {
                     //     payment_amount: this.final_price,
                     //     cashier: cashier,
                     // }
 
-                    //this.proceed_to_payment(payment_info_data);
+                    // this.proceed_to_payment(payment_info_data);
                     this.reset_bucket_list();
                 }
 
@@ -11567,6 +11605,7 @@ Bitcoin.Util = {
                     [product_static_info.product_flo_id] = admin_approval_signature;
 
                 floCloudAPI.updateObjectData(ecommerce.master_configurations.SUBJECT).then(result => {
+                    console.log(result);
                     ecommerce.actions.retrieveLatestContent();
                     showMessage(`Product ID ${product_static_info.product_flo_id} approved successfully.`);
                     return true;
@@ -11714,7 +11753,7 @@ Bitcoin.Util = {
                 const vendor_addr = validated_buy_order.buy_order_data.shopping_list[0].product_info.product_static_information.seller_flo_id;
 
                 floCloudAPI.sendGeneralData(validated_buy_order, ecommerce.master_configurations.DATA_TYPE.BUY_ORDERS, 
-                        {receiverID:vendor_addr, senderIDs: [myFloID]});
+                        {receiverID:vendor_addr});
 
                 compactIDB.addData("approved_buy_orders", validated_buy_order, txid);
 
@@ -11727,6 +11766,14 @@ Bitcoin.Util = {
         },
     }    
 </script>
+
+<!-- Courier functions -->
+<script>
+
+</script>
+
+
+
  <script src="https://code.jquery.com/jquery-3.3.1.slim.min.js" integrity="sha384-q8i/X+965DzO0rT7abK41JStQIAqVgRVzpbzo5smXKp4YfRvH+8abtTE1Pi6jizo" crossorigin="anonymous"></script>
  <script src="https://cdnjs.cloudflare.com/ajax/libs/popper.js/1.14.7/umd/popper.min.js" integrity="sha384-UO2eT0CpHqdSJQ6hJty5KVphtPhzWj9WO1clHTMGa3JDZwrnQq4sF86dIHNDz0W1" crossorigin="anonymous"></script>
  <script src="https://stackpath.bootstrapcdn.com/bootstrap/4.3.1/js/bootstrap.min.js" integrity="sha384-JjSmVgyd0p3pXB1rRibZUAYoIIy6OrQ6VrjIEaFf/nJGzIxFDsf4x0xIM+B07jRM" crossorigin="anonymous"></script>
