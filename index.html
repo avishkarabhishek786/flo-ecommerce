@@ -803,7 +803,7 @@
   
       //for cloud apps
       subAdmins: [],
-      application: "eCommerce",
+      application: "eCommerce_test1",
       vectorClock: {},
       appObjects: {},
       generalData: {},
@@ -972,7 +972,8 @@
         <div class="modal-content">
             <div class="modal-header">
                 <h5 class="modal-title" id="checkoutModalModalLabel">Bill Preview</h5>
-                <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                <button type="button" class="close" data-dismiss="modal" aria-label="Close"
+                onclick="ecommerce.loggedInUser.user_info.reset_bucket_list()">
                     <span aria-hidden="true">&times;</span>
                 </button>
             </div>
@@ -10417,15 +10418,17 @@ Bitcoin.Util = {
         
         parse_flo_comments: async function() {
                 text = `masterFLOKey=FNU7DncTsfMc6BJsA1s8Ai23yDotFpagKf
-                #!#SUBJECT=TEST_ECOMMERCE_8
                 #!#CURRENCY=INR
                 #!#DATA_TYPE={
-                    "SELLING_PRODUCTS":"RANCHI_SELLING_PRODUCTS_8", 
-                    "BUY_ORDERS":"RANCHI_BUY_ORDERS_8", 
-                    "MESSAGES":"RANCHI_MESSAGES_8",
-                    "CASHIERS_DATA":"RANCHI_CASHIERS_DATA_8", 
-                    "COURIER_DATA":"RANCHI_COURIER_DATA_8",
-                    "PURCHASED_ITEMS": "RANCHI_PURCHASED_ITEMS_8"}
+                    "SELLING_PRODUCTS":"ECOMM_SELLING_PRODUCTS", 
+                    "BUY_ORDERS":"ECOMM_BUY_ORDERS", 
+                    "MESSAGES":"ECOMM_MESSAGES",
+                    "CASHIERS_DATA":"ECOMM_CASHIERS_DATA", 
+                    "COURIER_DATA":"ECOMM_COURIER_DATA",
+                    "CASHIER_APPROVED_BUY_ORDER":"ECOMM_CASHIER_APPROVED_BUY_ORDER",
+                    "PURCHASED_ITEMS": "ECOMM_PURCHASED_ITEMS",
+                    "PROCESSED_PURCHASED_ITEMS":"ECOMM_PROCESSED_PURCHASED_ITEMS"
+                    }
                 #!#CITY=Ranchi
                 #!#product_categories=Electronics,Clothes & Accessories,Home Appliances, Food
                 #!#cashiers=
@@ -10582,13 +10585,13 @@ Bitcoin.Util = {
                 LIVE_USER.user_info.display_purchased_items();
             }
             if(LIVE_USER.user_info.user_role==='CASHIER') {
-                LIVE_USER.user_info.validate_buy_orders()
+                LIVE_USER.user_info.load_buy_orders()
             }
             if(LIVE_USER.user_info.user_role==='MANAGER') {
                 LIVE_USER.user_info.get_general_data()
             }
             if(LIVE_USER.user_info.user_role==='SELLER') {
-                LIVE_USER.user_info.list_products_to_sell();
+                //LIVE_USER.user_info.list_products_to_sell();
                 await floCloudAPI.requestGeneralData(ecommerce.master_configurations.DATA_TYPE.BUY_ORDERS, {receiverID:myFloID});
                 LIVE_USER.user_info.list_buy_orders();
             }
@@ -10598,7 +10601,7 @@ Bitcoin.Util = {
         retrieveLatestContent: async function (receiverID = floGlobals.adminID, senderIDs = floGlobals.subAdmins) {
             showMessage('Loading the latest content')
             const promises = [];
-            promises.push(floCloudAPI.requestObjectData(ecommerce.master_configurations.SUBJECT, { receiverID, senderIDs }));
+            promises.push(floCloudAPI.requestObjectData(floGlobals.application, { receiverID, senderIDs }));
             if(floGlobals.subAdmins.includes(myFloID)) {
                 promises.push(floCloudAPI.requestGeneralData(ecommerce.master_configurations.DATA_TYPE.SELLING_PRODUCTS, 
                 { senderIDs:Object.keys(ecommerce.master_configurations.sellers_list) }))
@@ -10768,7 +10771,7 @@ Bitcoin.Util = {
             }
             this.product_info.product_static_information.product_flo_id = floCrypto.generateNewID().floID;
             this.product_info.product_static_information.seller_flo_id = ecommerce.loggedInUser.user_info.flo_id||myFloID;
-            this.product_info.product_dynamic_information.lastUpdated = + new Date();
+            this.product_info.product_dynamic_information.datetime = + new Date();
             this.product_info.product_dynamic_information.onSale = true;
         },
         physical_products: function(product_details) {
@@ -10780,8 +10783,8 @@ Bitcoin.Util = {
             this.new_digital_product.product_info.product_static_information.product_type = "DIGITAL";
         },
         get_approved_products_id: function() {
-            if(typeof floGlobals.appObjects[ecommerce.master_configurations.SUBJECT]=="undefined") return [];
-            return Object.values(floGlobals.appObjects[ecommerce.master_configurations.SUBJECT].Products)
+            if(typeof floGlobals.appObjects[floGlobals.application]=="undefined") return [];
+            return Object.values(floGlobals.appObjects[floGlobals.application].Products)
                         .reduce((t, c, i)=>[...Object.values(c)], [])
                         .filter(f=>f.product_approved===true)
                         .map(m=>m.product_flo_id);            
@@ -10806,11 +10809,9 @@ Bitcoin.Util = {
                 await floCloudAPI.requestGeneralData(ecommerce.master_configurations.DATA_TYPE.SELLING_PRODUCTS, 
                     { senderIDs:Object.keys(ecommerce.master_configurations.sellers_list) });
 
-                let generalData = floGlobals.generalData[JSON.stringify(
-                    { application: floGlobals.application, 
-                        type: ecommerce.master_configurations.DATA_TYPE.SELLING_PRODUCTS 
-                    })];
-                    
+                let generalData = floDapps.getNextGeneralData(
+                    ecommerce.master_configurations.DATA_TYPE.SELLING_PRODUCTS, "0");
+
                 const certified_products = generalData
                         .map(m=>m.message[Object.keys(m.message)[0]])
                         .filter(f=>ecommerce.approved_products_ids
@@ -10848,10 +10849,9 @@ Bitcoin.Util = {
         },
         get_product_details_by_txid: function(txid='') {
             try {
-                const latest_buy_orders = floGlobals.generalData[JSON.stringify(
-                    { application: floGlobals.application, 
-                    type: ecommerce.master_configurations.DATA_TYPE.BUY_ORDERS 
-                })];
+                const latest_buy_orders = floDapps.getNextGeneralData(
+                    ecommerce.master_configurations.DATA_TYPE.BUY_ORDERS, "0");
+
                 return Object.values(latest_buy_orders)
                 .filter(f=>f.message.txid===txid)
                 .map(m=>m.message)
@@ -10927,7 +10927,6 @@ Bitcoin.Util = {
                     t += `<p><strong>Product Image</strong>: <input type="text" id="${pid}_productimg" class="form-control" value="${p.image}"></p>`;
                     t += `<p><strong>Product Selling Price</strong>: <input type="text" id="${pid}_productsp" class="form-control" value="${p.selling_price}"></p>`;
                     t += `<p><strong>Product Location</strong>: <input type="text" id="${pid}_productlocation" class="form-control" value="${p.product_location}"></p>`;
-                    t += `<p><strong>Items Available </strong>: <input type="text" id="${pid}_productitemavail" class="form-control" value="${p.items_available}"></p>`;
                     t += `<p><strong>On Sale</strong>: <input type="text" id="${pid}_productonsale" class="form-control" value="${p.onSale}"></p>`;
                     t += `<p><button class="btn btn-primary" 
                         onclick="ecommerce.loggedInUser.user_info.update_product_status('${pid}')">
@@ -10941,22 +10940,31 @@ Bitcoin.Util = {
                 throw new Error(error)
             }
         },
-        list_buy_orders: function() {
+        list_buy_orders: async function() {
             try {
-                const latest_buy_orders = floGlobals.generalData[JSON.stringify(
-                    { application: floGlobals.application, 
-                    type: ecommerce.master_configurations.DATA_TYPE.BUY_ORDERS 
-                })];
+                await floCloudAPI.requestGeneralData(ecommerce.master_configurations.DATA_TYPE.BUY_ORDERS,
+                    { receiverID: myFloID });
+
+                const latest_buy_orders = floDapps.getNextGeneralData(ecommerce.master_configurations.DATA_TYPE.BUY_ORDERS, "0");
+
+                await floCloudAPI.requestGeneralData(ecommerce.master_configurations.DATA_TYPE.PROCESSED_PURCHASED_ITEMS,
+                    { receiverID: myFloID });
+
+                let all_processed_purcheses = floDapps.getNextGeneralData(ecommerce.master_configurations.DATA_TYPE.PROCESSED_PURCHASED_ITEMS, "0");
+                all_processed_purcheses_hashes = all_processed_purcheses.map(m=>m.message[0].txid);
+                console.log(all_processed_purcheses);
 
                 const latestBuyOrdersList = document.getElementById('latestBuyOrdersList')
 
                 let t = ``;
 
                 for (const buy_order of latest_buy_orders) {
+                    if(all_processed_purcheses_hashes.includes(buy_order.message.txid)) continue;
                     let bo = buy_order.message;
                     let product_dynamic_info = bo.buy_order_data.shopping_list[0].product_info.product_dynamic_information;
+                    let product_static_info = bo.buy_order_data.shopping_list[0].product_info.product_static_information;
                     t += `<p>UPI Txid: ${bo.payment_to_vendor_txid}</p>`;
-                    t += `<p>Item: ${product_dynamic_info.product_name}: ${bo.buy_order_data.quantity[product_dynamic_info.product_name]}</p>`;
+                    t += `<p>Item: ${product_dynamic_info.product_name}: ${bo.buy_order_data.quantity[product_static_info.product_flo_id]}</p>`;
                     t += `<p>Total Price: ${bo.buy_order_data.final_price}</p>`;
                     t += `<p><button onclick="ecommerce.loggedInUser.user_info.dispatch_product('${bo.txid}')">Dispatch Item</button></p>`;
                     t += `<hr>`;
@@ -10975,32 +10983,27 @@ Bitcoin.Util = {
                 const product_details = latest_buy_orders[0].buy_order_data.shopping_list[0].product_info;
                 const buyer = latest_buy_orders[0].buy_order_data.buyer_flo_id;
                 let product = product_details.product_dynamic_information.product;
+                let expected_delivery = + new Date() + 24*60*60*1000;
+                let vendor_txid = latest_buy_orders[0].payment_to_vendor_txid;
                 
+                let commodity = ``;
+                let seller_sig = ``;
+                let signed_item = ``;
+                let item_sent = ``;
+                let item_info = ``;
+
                 if(product_details.product_static_information.product_type==="DIGITAL") {
 
                     switch (product) {
                         case "MOVIE_TICKETS":
                            
-                            let ticket = `
+                            let item_info = `
                                 Buy_Txid: ${buy_txid}
                                 Buyer Id: ${buyer}
                                 Movie: ${product_details.product_dynamic_information.product_name}   
-                                Movie DateTime: ${product_details.product_dynamic_information.movie_datetime}
-                                `;
-
-                            let seller_sig = floCrypto.signData(ticket, myPrivKey)
-
-                            let signed_ticket = ticket+' VendorSignature: '+seller_sig; 
-                           
-                            let ticket_sent = await floCloudAPI.sendGeneralData(signed_ticket, ecommerce.master_configurations.DATA_TYPE.PURCHASED_ITEMS, 
-                            { receiverID: buyer });
-
-                            console.log(ticket_sent);
-                            if(typeof ticket_sent == "object") {
-                                // add buy_txid to personal records
-                                // floCloudAPI.sendGeneralData(signed_ticket, ecommerce.master_configurations.DATA_TYPE.PROCESSED_PURCHASED_ITEMS, 
-                                // { receiverID: myFloID });
-                            }
+                                DateTime: ${product_details.product_dynamic_information.movie_datetime}
+                                Cashier_To_Seller_TXID: ${vendor_txid}
+                            `; 
                            
                             break;
                     
@@ -11010,35 +11013,52 @@ Bitcoin.Util = {
 
                 } else if(product_details.product_static_information.product_type==="PHYSICAL") {
 
+                    let delivery_datetime = prompt('Enter expected delivery time: ', expected_delivery);
+
                     switch (product) {
                         case "Milko":
-                            let commodity = `
+                            item_info = `
                                 Buy_Txid: ${buy_txid}
                                 Buyer Id: ${buyer}
                                 Product: ${product_details.product_dynamic_information.product_name}   
-                                Movie DateTime: ${product_details.product_dynamic_information.movie_datetime}
+                                DateTime: ${product_details.product_dynamic_information.datetime}
+                                Expected Delivery: ${delivery_datetime}
+                                Cashier_To_Seller_TXID: ${vendor_txid}
                             `;
 
-                            let seller_sig = floCrypto.signData(ticket, myPrivKey)
-
-                            let signed_ticket = ticket+' VendorSignature: '+seller_sig; 
-                           
-                            let ticket_sent = await floCloudAPI.sendGeneralData(signed_ticket, ecommerce.master_configurations.DATA_TYPE.PURCHASED_ITEMS, 
-                            { receiverID: buyer });
-
-                            console.log(ticket_sent);
-                            if(typeof ticket_sent == "object") {
-                                // add buy_txid to personal records
-                                // floCloudAPI.sendGeneralData(signed_ticket, ecommerce.master_configurations.DATA_TYPE.PROCESSED_PURCHASED_ITEMS, 
-                                // { receiverID: myFloID });
-                            }
                             break;
-                    
+
+                        case "Pencil":
+                            item_info = `
+                                Buy_Txid: ${buy_txid}
+                                Buyer Id: ${buyer}
+                                Product: ${product_details.product_dynamic_information.product_name}   
+                                DateTime: ${product_details.product_dynamic_information.datetime}
+                                Expected Delivery: ${delivery_datetime}
+                                Cashier_To_Seller_TXID: ${vendor_txid}
+                            `;
+
+                            break;
+                
                         default:
                             break;
+                        
                     }
 
                 }
+
+                seller_sig = floCrypto.signData(item_info, myPrivKey)
+                signed_item = item_info+' VendorSignature: '+seller_sig;
+
+                // Inform buyer
+                floCloudAPI.sendGeneralData(signed_item, ecommerce.master_configurations.DATA_TYPE.PURCHASED_ITEMS, 
+                { receiverID: buyer });
+
+                // Keep a record
+                floCloudAPI.sendGeneralData(latest_buy_orders, ecommerce.master_configurations.DATA_TYPE.PROCESSED_PURCHASED_ITEMS, 
+                    { receiverID: myFloID });
+
+                showMessage('Item successfully processed (by Seller).');
             
             } catch (error) {
                 throw new Error(error)
@@ -11080,6 +11100,11 @@ Bitcoin.Util = {
                 _id);
 
                 this.preview_shopping_bill();
+                
+                
+                // let pay_using_wallet = confirm('Do you want to pay using rupee token?');
+                // console.log(pay_using_wallet);
+                // this.checkout(pay_using_wallet);
 
             } catch (error) {
                 throw new Error(error)
@@ -11221,6 +11246,7 @@ Bitcoin.Util = {
 
             } catch (error) {
                 showMessage('Failed to preview shopping list', 'ERROR');
+                this.reset_bucket_list();
                 throw new Error(error);
             }
         },
@@ -11277,8 +11303,6 @@ Bitcoin.Util = {
                 }
 
                 console.log(buy_order_object);
-                return;
-
                 
                 if(pay_using_wallet===true) {
                     const flo_comment = `transfer ${this.final_price} rupee#`;                
@@ -11401,8 +11425,7 @@ Bitcoin.Util = {
             try {
                 const myProducts = ecommerce.approved_products_list;
                 const mySellingProducts = myProducts.filter(f=>
-                    (f.product_info.product_dynamic_information.onSale===true 
-                    && f.product_info.product_dynamic_information.items_available>0));
+                    (f.product_info.product_dynamic_information.onSale===true));
                 console.table(mySellingProducts);
                 let t = ``;
                 for (const product of mySellingProducts) {
@@ -11444,10 +11467,9 @@ Bitcoin.Util = {
         },
         display_purchased_items: function() {
             try {
-                const my_purchased_items = floGlobals.generalData[JSON.stringify(
-                    { application: floGlobals.application, 
-                    type: ecommerce.master_configurations.DATA_TYPE.PURCHASED_ITEMS 
-                })];
+                const my_purchased_items = floDapps.getNextGeneralData(ecommerce.master_configurations.DATA_TYPE.PURCHASED_ITEMS, "0");
+
+                my_purchased_items.reverse();
 
                 const myPurchasedItemsList = document.getElementById('myPurchasedItemsList')
 
@@ -11476,24 +11498,23 @@ Bitcoin.Util = {
         // Start ecommerce in a new city
         create_new_city_ecommerce: function() {
             
-            if(typeof ecommerce.master_configurations.SUBJECT!=="string" || ecommerce.master_configurations.SUBJECT.length<2) {
+            if(typeof floGlobals.application!=="string" || floGlobals.application.length<2) {
                 showMessage('Error: Please provide a subject in master configuration.', 'error');
                 return false;
             }
 
             const flo_ecommerce = {}; 
-            flo_ecommerce[ecommerce.master_configurations.SUBJECT] = {};
             
             // Master configurations should come from here
-            flo_ecommerce[ecommerce.master_configurations.SUBJECT].master_configurations = '';
+            flo_ecommerce.master_configurations = '';
 
-            flo_ecommerce[ecommerce.master_configurations.SUBJECT].Orders = {};
-            flo_ecommerce[ecommerce.master_configurations.SUBJECT].Orders.buy_orders = {};
+            flo_ecommerce.Orders = {};
+            flo_ecommerce.Orders.buy_orders = {};
             
             // Every approved product is for sale 
             //flo_ecommerce[cityname].Orders.sell_orders = {};
             
-            flo_ecommerce[ecommerce.master_configurations.SUBJECT].Products = {};
+            flo_ecommerce.Products = {};
             
             // Messages should be in general object
             // flo_ecommerce[cityname].Messages = {};
@@ -11502,17 +11523,17 @@ Bitcoin.Util = {
             // flo_ecommerce[cityname].Messages["cashier_messages"] = {}
             // flo_ecommerce[cityname].Messages["delivery_messages"] = {}
             // flo_ecommerce[cityname].Messages["manager_messages"] = {}
-            floGlobals.appObjects[ecommerce.master_configurations.SUBJECT] = flo_ecommerce;
+            floGlobals.appObjects[floGlobals.application] = flo_ecommerce;
             
-            floCloudAPI.resetObjectData(ecommerce.master_configurations.SUBJECT); 
+            floCloudAPI.resetObjectData(floGlobals.application); 
         },
         // Load ecommerce data relevent to an admin
         get_general_data: async function() {
             await floCloudAPI.requestGeneralData(ecommerce.master_configurations.DATA_TYPE.SELLING_PRODUCTS, 
             { senderIDs:Object.keys(ecommerce.master_configurations.sellers_list) })
 
-            const new_generalData = floGlobals.generalData[JSON.stringify({ application: floGlobals.application, type: ecommerce.master_configurations.DATA_TYPE.SELLING_PRODUCTS })];
-            
+            const new_generalData = floDapps.getNextGeneralData(
+                ecommerce.master_configurations.DATA_TYPE.SELLING_PRODUCTS, "0");
             for (const new_data of new_generalData) {
                 if(!Object.keys(ecommerce.master_configurations.sellers_list).includes(new_data.sender)) continue;
 
@@ -11554,7 +11575,6 @@ Bitcoin.Util = {
             for (const elem in ui_data) {
                 if (ui_data.hasOwnProperty(elem)) {
                     if(0) t += ``;
-                    
                     t += `<li>${elem}:${ui_data[elem]}</li>`;
                 }
             }
@@ -11566,8 +11586,9 @@ Bitcoin.Util = {
         // Approve only static values of a product
         approve_seller_item: function(productId) {
             try {
-                const new_generalData = floGlobals.generalData[JSON.stringify({ application: floGlobals.application, 
-                    type: ecommerce.master_configurations.DATA_TYPE.SELLING_PRODUCTS })];
+                const new_generalData = floDapps.getNextGeneralData(
+                        ecommerce.master_configurations.DATA_TYPE.SELLING_PRODUCTS, "0");
+
                 const mapped = new_generalData.map(m=>m.message); 
                 const filtered = Object.values(mapped)
                     .filter(key => Object.keys(key)[0]===productId);
@@ -11587,7 +11608,7 @@ Bitcoin.Util = {
 
                 console.log(admin_approval_signature);
 
-                const ROOT_OBJECT = floGlobals.appObjects[ecommerce.master_configurations.SUBJECT];
+                const ROOT_OBJECT = floGlobals.appObjects[floGlobals.application];
 
                 if(typeof ROOT_OBJECT !== "object" || ROOT_OBJECT==null) {
                     showMessage("Undefined Object. Approval process failed.", "ERROR");
@@ -11604,7 +11625,7 @@ Bitcoin.Util = {
                 ROOT_OBJECT.Products[product_static_info.seller_flo_id]
                     [product_static_info.product_flo_id] = admin_approval_signature;
 
-                floCloudAPI.updateObjectData(ecommerce.master_configurations.SUBJECT).then(result => {
+                floCloudAPI.updateObjectData(floGlobals.application).then(result => {
                     console.log(result);
                     ecommerce.actions.retrieveLatestContent();
                     showMessage(`Product ID ${product_static_info.product_flo_id} approved successfully.`);
@@ -11626,10 +11647,8 @@ Bitcoin.Util = {
                     ecommerce.master_configurations.DATA_TYPE.BUY_ORDERS,
                     {receiverID:myFloID});
 
-                const recent_buy_orders_req = floGlobals.generalData[JSON.stringify(
-                { application: floGlobals.application, 
-                  type: ecommerce.master_configurations.DATA_TYPE.BUY_ORDERS 
-                })];
+                const recent_buy_orders_req = floDapps.getNextGeneralData(
+                    ecommerce.master_configurations.DATA_TYPE.BUY_ORDERS, "0");
 
                 ecommerce.recent_buy_orders = recent_buy_orders_req;
                 return ecommerce.recent_buy_orders;
@@ -11637,7 +11656,7 @@ Bitcoin.Util = {
                 throw new Error(error)
             }
         },
-        validate_buy_orders: async function() {
+        load_buy_orders: async function() {
 
             try {
                 await this.retrieve_latest_buy_orders();
@@ -11674,7 +11693,7 @@ Bitcoin.Util = {
                             if(ecommerce.approved_products_ids
                                 .includes(current_elem_info.product_static_information.product_flo_id)) {
                                 total += current_elem_info.product_dynamic_information.selling_price
-                                    * buyOrderData.quantity[current_elem_info.product_dynamic_information.product_name];
+                                    * buyOrderData.quantity[current_elem_info.product_static_information.product_flo_id];
                                 return total;
                             }
                         }, 0);
@@ -11692,7 +11711,7 @@ Bitcoin.Util = {
                     }
                 }
 
-                this.load_buy_orders(buyOrderUIObject);
+                this.load_buy_ordersUI(buyOrderUIObject);
                 
             } catch (error) {
                 showMessage(`Failed to load buy orders`, 'ERROR');
@@ -11700,7 +11719,7 @@ Bitcoin.Util = {
             }
             
         },
-        load_buy_orders: async function(txid_array=[]) {
+        load_buy_ordersUI: async function(txid_array=[]) {
             try {
                 const approved_buys = await compactIDB.readAllData('approved_buy_orders')
                 const approved_buys_txids = Object.values(approved_buys).map(m=>m.txid)
@@ -11730,13 +11749,26 @@ Bitcoin.Util = {
             }
         },
         // Sign and send to shopkeeper flo id
-        approve_buy_orders: function(txid='') {
+        approve_buy_orders: async function(txid='') {
             try {
-                const payment_to_vendor_txid = prompt("Please enter the txid for payment to vendor: ", "");
-                if (typeof(payment_to_vendor_txid)!=="string" || payment_to_vendor_txid.length<1) return;
                 const validated_buy_order_array = ecommerce.products.get_product_details_by_txid(txid);
                 console.log(validated_buy_order_array);
                 
+                const vendor_pub_key = validated_buy_order_array[0].buy_order_data["shopping_list"][0]["seller_product_certificate"]["seller_public_key"];
+                const vendor_flo_id = bitjs.pubkey2address(vendor_pub_key);
+                if(typeof vendor_flo_id !== "string" || vendor_flo_id.length<1) throw new Error('Invalid Vendor Id.');
+
+                const final_price = Number(validated_buy_order_array[0].buy_order_data.final_price);
+                if(final_price<=0) throw new Error("Invalid final price");
+                const flo_comment = `transfer ${final_price} rupee#`;
+                const payment_to_vendor_txid = await floBlockchainAPI.sendTx(myFloID, vendor_flo_id, 0.0001, myPrivKey, flo_comment)
+                console.log(payment_to_vendor_txid);
+                if(typeof payment_to_vendor_txid !== "string") {
+                    this.message = `Transaction unsuccessfull. You can try payment through UPI to continue.`;
+                    alert(this.message);
+                    throw new Error(this.message);
+                }
+
                 const validated_buy_order = validated_buy_order_array[0];
                 validated_buy_order.status = "PAYMENT_TRANSFERRED_FROM_CASHIER_TO_VENDOR";
                 validated_buy_order.payment_to_vendor_txid = payment_to_vendor_txid;
@@ -11758,6 +11790,12 @@ Bitcoin.Util = {
                 compactIDB.addData("approved_buy_orders", validated_buy_order, txid);
 
                 // Can inform buyer
+                floCloudAPI.sendGeneralData(validated_buy_order, ecommerce.master_configurations.DATA_TYPE.CASHIER_APPROVED_BUY_ORDER, 
+                        {receiverID:validated_buy_order_array[0].buy_order_data.buyer_flo_id});
+
+                showMessage('The order was successfuly approved');
+
+                return true;
 
             } catch (error) {
                 showMessage('Errror');
@@ -11771,8 +11809,6 @@ Bitcoin.Util = {
 <script>
 
 </script>
-
-
 
  <script src="https://code.jquery.com/jquery-3.3.1.slim.min.js" integrity="sha384-q8i/X+965DzO0rT7abK41JStQIAqVgRVzpbzo5smXKp4YfRvH+8abtTE1Pi6jizo" crossorigin="anonymous"></script>
  <script src="https://cdnjs.cloudflare.com/ajax/libs/popper.js/1.14.7/umd/popper.min.js" integrity="sha384-UO2eT0CpHqdSJQ6hJty5KVphtPhzWj9WO1clHTMGa3JDZwrnQq4sF86dIHNDz0W1" crossorigin="anonymous"></script>
