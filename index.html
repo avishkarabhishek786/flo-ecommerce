@@ -10417,18 +10417,20 @@ Bitcoin.Util = {
     ecommerce.actions = {
         
         parse_flo_comments: async function() {
+                let version = 2;
                 text = `masterFLOKey=FNU7DncTsfMc6BJsA1s8Ai23yDotFpagKf
                 #!#CURRENCY=INR
                 #!#DATA_TYPE={
-                    "SELLING_PRODUCTS":"ECOMM_SELLING_PRODUCTS", 
-                    "BUY_ORDERS":"ECOMM_BUY_ORDERS", 
-                    "MESSAGES":"ECOMM_MESSAGES",
-                    "CASHIERS_DATA":"ECOMM_CASHIERS_DATA", 
-                    "COURIER_DATA":"ECOMM_COURIER_DATA",
-                    "CASHIER_APPROVED_BUY_ORDER":"ECOMM_CASHIER_APPROVED_BUY_ORDER",
-                    "PURCHASED_ITEMS": "ECOMM_PURCHASED_ITEMS",
-                    "PROCESSED_PURCHASED_ITEMS":"ECOMM_PROCESSED_PURCHASED_ITEMS"
-                    }
+                    "SELLING_PRODUCTS":"ECOMM_SELLING_PRODUCTS_${version}", 
+                    "BUY_ORDERS":"ECOMM_BUY_ORDERS_${version}", 
+                    "MESSAGES":"ECOMM_MESSAGES_${version}",
+                    "CASHIERS_DATA":"ECOMM_CASHIERS_DATA_${version}", 
+                    "COURIER_DATA":"ECOMM_COURIER_DATA_${version}",
+                    "CASHIER_APPROVED_BUY_ORDER":"ECOMM_CASHIER_APPROVED_BUY_ORDER_${version}",
+                    "PURCHASED_ITEMS": "ECOMM_PURCHASED_ITEMS_${version}",
+                    "PROCESSED_PURCHASED_ITEMS":"ECOMM_PROCESSED_PURCHASED_ITEMS_${version}"
+                    "COURIERED_ITEMS":"ECOMM_COURIERED_ITEMS_${version}"
+                }
                 #!#CITY=Ranchi
                 #!#product_categories=Electronics,Clothes & Accessories,Home Appliances, Food
                 #!#cashiers=
@@ -10847,7 +10849,7 @@ Bitcoin.Util = {
                 } 
             });
         },
-        get_product_details_by_txid: function(txid='') {
+        get_buy_details_by_txid: function(txid='') {
             try {
                 const latest_buy_orders = floDapps.getNextGeneralData(
                     ecommerce.master_configurations.DATA_TYPE.BUY_ORDERS, "0");
@@ -10948,7 +10950,7 @@ Bitcoin.Util = {
                 const latest_buy_orders = floDapps.getNextGeneralData(ecommerce.master_configurations.DATA_TYPE.BUY_ORDERS, "0");
 
                 await floCloudAPI.requestGeneralData(ecommerce.master_configurations.DATA_TYPE.PROCESSED_PURCHASED_ITEMS,
-                    { receiverID: myFloID });
+                    { senderIDs:[myFloID], receiverID: myFloID });
 
                 let all_processed_purcheses = floDapps.getNextGeneralData(ecommerce.master_configurations.DATA_TYPE.PROCESSED_PURCHASED_ITEMS, "0");
                 all_processed_purcheses_hashes = all_processed_purcheses.map(m=>m.message[0].txid);
@@ -10978,84 +10980,50 @@ Bitcoin.Util = {
         },
         dispatch_product: async function(buy_txid='') {
             try {
-                const latest_buy_orders = ecommerce.products.get_product_details_by_txid(buy_txid)
+                const latest_buy_orders = ecommerce.products.get_buy_details_by_txid(buy_txid);
                 if(latest_buy_orders.length<1) throw new Error('No such buy order found.')
                 const product_details = latest_buy_orders[0].buy_order_data.shopping_list[0].product_info;
                 const buyer = latest_buy_orders[0].buy_order_data.buyer_flo_id;
                 let product = product_details.product_dynamic_information.product;
                 let expected_delivery = + new Date() + 24*60*60*1000;
                 let vendor_txid = latest_buy_orders[0].payment_to_vendor_txid;
+                const buyer_addr = latest_buy_orders[0].buy_order_data.buyer_location;
                 
-                let commodity = ``;
-                let seller_sig = ``;
-                let signed_item = ``;
-                let item_sent = ``;
-                let item_info = ``;
+                let item_info = {};
+                item_info["BuyTxid"] = buy_txid;
+                item_info["BuyerId"] = buyer;
+                item_info["Product"] = product_details.product_dynamic_information.product_name;
+                item_info["DateTime"] = product_details.product_dynamic_information.datetime;
+                item_info["Cashier_To_Seller_TXID"] = vendor_txid;
+                item_info["delivery_address"] = buyer_addr;
+
+                const seller_sign = floCrypto.signData(item_info, myPrivKey);
+                item_info["seller_sign"] = seller_sign;
 
                 if(product_details.product_static_information.product_type==="DIGITAL") {
-
-                    switch (product) {
-                        case "MOVIE_TICKETS":
-                           
-                            let item_info = `
-                                Buy_Txid: ${buy_txid}
-                                Buyer Id: ${buyer}
-                                Movie: ${product_details.product_dynamic_information.product_name}   
-                                DateTime: ${product_details.product_dynamic_information.movie_datetime}
-                                Cashier_To_Seller_TXID: ${vendor_txid}
-                            `; 
-                           
-                            break;
-                    
-                        default:
-                            break;
-                    }
-
+                    //
                 } else if(product_details.product_static_information.product_type==="PHYSICAL") {
+                    let delivery_datetime = prompt('In approx how many hours customer can receive this item: ', expected_delivery);
+                    if(typeof delivery_datetime !== "number" || delivery_datetime<=0) delivery_datetime = expected_delivery;
+                    item_info["ExpectedDelivery"] = + new Date() + delivery_datetime*60*60*1000;
+                    let courier_req = confirm('Is courier required?');
+                    if(courier_req==true) {
+                        let CourierId = randomNoRepeats(Object.keys(ecommerce.master_configurations.couriers_list)
+                            .filter(f=>ecommerce.master_configurations.couriers_list[f].courier_permission===true))();
+                        item_info["CourierId"] = CourierId;
 
-                    let delivery_datetime = prompt('Enter expected delivery time: ', expected_delivery);
-
-                    switch (product) {
-                        case "Milko":
-                            item_info = `
-                                Buy_Txid: ${buy_txid}
-                                Buyer Id: ${buyer}
-                                Product: ${product_details.product_dynamic_information.product_name}   
-                                DateTime: ${product_details.product_dynamic_information.datetime}
-                                Expected Delivery: ${delivery_datetime}
-                                Cashier_To_Seller_TXID: ${vendor_txid}
-                            `;
-
-                            break;
-
-                        case "Pencil":
-                            item_info = `
-                                Buy_Txid: ${buy_txid}
-                                Buyer Id: ${buyer}
-                                Product: ${product_details.product_dynamic_information.product_name}   
-                                DateTime: ${product_details.product_dynamic_information.datetime}
-                                Expected Delivery: ${delivery_datetime}
-                                Cashier_To_Seller_TXID: ${vendor_txid}
-                            `;
-
-                            break;
-                
-                        default:
-                            break;
-                        
+                        // Inform Courier
+                        floCloudAPI.sendGeneralData(item_info, ecommerce.master_configurations.DATA_TYPE.COURIER_DATA, 
+                        { receiverID: CourierId });
                     }
-
                 }
 
-                seller_sig = floCrypto.signData(item_info, myPrivKey)
-                signed_item = item_info+' VendorSignature: '+seller_sig;
-
                 // Inform buyer
-                floCloudAPI.sendGeneralData(signed_item, ecommerce.master_configurations.DATA_TYPE.PURCHASED_ITEMS, 
+                floCloudAPI.sendGeneralData(item_info, ecommerce.master_configurations.DATA_TYPE.PURCHASED_ITEMS, 
                 { receiverID: buyer });
 
                 // Keep a record
-                floCloudAPI.sendGeneralData(latest_buy_orders, ecommerce.master_configurations.DATA_TYPE.PROCESSED_PURCHASED_ITEMS, 
+                floCloudAPI.sendGeneralData(item_info, ecommerce.master_configurations.DATA_TYPE.PROCESSED_PURCHASED_ITEMS, 
                     { receiverID: myFloID });
 
                 showMessage('Item successfully processed (by Seller).');
@@ -11478,7 +11446,8 @@ Bitcoin.Util = {
                 t += `<h5>Your Purchased Items</h5>`;
 
                 for (const my_items of my_purchased_items) {
-                    t += `${my_items.message.trim()}`;
+                    console.log(my_items.message);
+                    t += `${printArrayOfArrays(my_items.message)}`;
                     t += `<hr>`
                 }
 
@@ -11726,7 +11695,7 @@ Bitcoin.Util = {
                 let t = ``;
                 for (const txid of txid_array) {     
                     if(approved_buys_txids.includes(txid)) continue;           
-                    const validated_array = ecommerce.products.get_product_details_by_txid(txid);
+                    const validated_array = ecommerce.products.get_buy_details_by_txid(txid);
                     let buyOrderUIObject = printArrayOfArrays(validated_array);
                     console.log(buyOrderUIObject);
                     t += `<ul>`;
@@ -11751,7 +11720,7 @@ Bitcoin.Util = {
         // Sign and send to shopkeeper flo id
         approve_buy_orders: async function(txid='') {
             try {
-                const validated_buy_order_array = ecommerce.products.get_product_details_by_txid(txid);
+                const validated_buy_order_array = ecommerce.products.get_buy_details_by_txid(txid);
                 console.log(validated_buy_order_array);
                 
                 const vendor_pub_key = validated_buy_order_array[0].buy_order_data["shopping_list"][0]["seller_product_certificate"]["seller_public_key"];
@@ -11807,7 +11776,51 @@ Bitcoin.Util = {
 
 <!-- Courier functions -->
 <script>
+    ecommerce.users.user_types.couriers.prototype = {
+        display_deliverable_items: async function() {
+            try {
+                await floCloudAPI.requestGeneralData(ecommerce.master_configurations.DATA_TYPE.COURIER_DATA, 
+                    { senderIDs:Object.keys(ecommerce.master_configurations.couriers_list), receiverID: myFloID });
+                
+                await floCloudAPI.requestGeneralData(ecommerce.master_configurations.DATA_TYPE.COURIERED_ITEMS,
+                    { senderIDs: [myFloID], receiverID: myFloID });
 
+                let all_processed_couriers = floDapps.getNextGeneralData(ecommerce.master_configurations.DATA_TYPE.COURIERED_ITEMS, "0");
+                console.log(all_processed_couriers);
+                let all_processed_couriers_ids = all_processed_couriers.map(m=>m.message[0].BuyTxid);
+                console.log(all_processed_couriers);
+
+                const recent_delivery_orders_req = floDapps.getNextGeneralData(
+                ecommerce.master_configurations.DATA_TYPE.COURIER_DATA, "0");
+
+                console.log(recent_delivery_orders_req);
+
+                for (const courier_order of recent_delivery_orders_req) {
+                    if(all_processed_couriers_ids.includes(courier_order.message.BuyTxid)) continue;
+                    let co = courier_order.message;
+                    console.log(co);
+
+                    // On succesful delivery call function this.item_delivered(co);
+                }
+
+            } catch (error) {
+                showMessage('Failed to load new requests..');
+                throw new Error(error);
+            }
+        },
+
+        item_delivered: function(item={}) {
+            try {
+                floCloudAPI.sendGeneralData(item, ecommerce.master_configurations.DATA_TYPE.COURIERED_ITEMS,
+                    { receiverID: myFloID });
+            } catch (error) {
+                alert('Failed to add item in delivered list');
+                throw new Error(error);
+            }
+        }
+
+
+    }
 </script>
 
  <script src="https://code.jquery.com/jquery-3.3.1.slim.min.js" integrity="sha384-q8i/X+965DzO0rT7abK41JStQIAqVgRVzpbzo5smXKp4YfRvH+8abtTE1Pi6jizo" crossorigin="anonymous"></script>
