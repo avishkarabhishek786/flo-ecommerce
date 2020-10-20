@@ -10428,11 +10428,12 @@ Bitcoin.Util = {
                     "COURIER_DATA":"ECOMM_COURIER_DATA_${version}",
                     "CASHIER_APPROVED_BUY_ORDER":"ECOMM_CASHIER_APPROVED_BUY_ORDER_${version}",
                     "PURCHASED_ITEMS": "ECOMM_PURCHASED_ITEMS_${version}",
-                    "PROCESSED_PURCHASED_ITEMS":"ECOMM_PROCESSED_PURCHASED_ITEMS_${version}"
+                    "PROCESSED_PURCHASED_ITEMS":"ECOMM_PROCESSED_PURCHASED_ITEMS_${version}",
                     "COURIERED_ITEMS":"ECOMM_COURIERED_ITEMS_${version}"
+                    "MY_LOCAL_SHOPS_LIST":"ECOMM_MY_LOCAL_SHOPS_LIST_${version}"
                 }
                 #!#CITY=Ranchi
-                #!#product_categories=Electronics,Clothes & Accessories,Home Appliances, Food
+                #!#product_categories=Deal_Of_The_Day,Under_500,Daily_Items,Local_Services,My_Local_Shops, My_Matched_shops
                 #!#cashiers=
                 {
                     "FByrY4vc1NRfbkqAqABtUyhhNzMZsKUjqr": {
@@ -10846,6 +10847,21 @@ Bitcoin.Util = {
                 } catch (error) {
                     showMessage('Failed to get any product with id '+productFloId, 'ERROR');
                     reject('Failed to get any product with id '+productFloId);
+                } 
+            });
+        },
+        get_product_details_by_category: function(category='') {
+            return new Promise((resolve, reject) => {
+                try {
+                    const filtered_product = ecommerce.approved_products_list
+                    .filter(f=>f.product_info.product_static_information.product_category===category);
+                
+                    if(filtered_product.length!==1) return reject("Product not found.");
+                    resolve(filtered_product);
+
+                } catch (error) {
+                    showMessage('Failed to get any product with category '+category, 'ERROR');
+                    reject('Failed to get any product with category '+category);
                 } 
             });
         },
@@ -11457,6 +11473,30 @@ Bitcoin.Util = {
                 throw new Error(error)
             }
         },
+        add_local_shop: function(seller_id='') {
+            try {
+                // MY_LOCAL_SHOPS_LIST
+                floGlobals.appObjects[ecommerce.master_configurations.DATA_TYPE.MY_LOCAL_SHOPS_LIST][seller_id].push(myFloID);
+                floCloudAPI.updateObjectData(ecommerce.master_configurations.DATA_TYPE.MY_LOCAL_SHOPS_LIST, 
+                {receiverID:floGlobals.adminID}).then(()=>showMessage('Updated local shop.'));
+                return true;
+            } catch(error) {
+                throw new Error(error);
+            }
+        },
+        get_top_sellers: async function() {
+            try {
+                const sellersList = Object.keys(ecommerce.master_configurations.sellers_list);
+                await floCloudAPI.requestObjectData(ecommerce.master_configurations.DATA_TYPE.MY_LOCAL_SHOPS_LIST,
+                    { receiverID: floGlobals.adminID, senderIDs: sellersList });
+                const get_sellers_by_recommendations = 
+                floGlobals.appObjects[ecommerce.master_configurations.DATA_TYPE.MY_LOCAL_SHOPS_LIST];
+                
+                console.log(get_sellers_by_recommendations);
+            } catch(error) {
+                throw new Error(error);
+            }
+        },
     }
 
 </script>
@@ -11808,7 +11848,6 @@ Bitcoin.Util = {
                 throw new Error(error);
             }
         },
-
         item_delivered: function(item={}) {
             try {
                 floCloudAPI.sendGeneralData(item, ecommerce.master_configurations.DATA_TYPE.COURIERED_ITEMS,
@@ -11818,8 +11857,6 @@ Bitcoin.Util = {
                 throw new Error(error);
             }
         }
-
-
     }
 </script>
 
